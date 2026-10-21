@@ -1,0 +1,26 @@
+[project]
+name = "manufacturing-cost-intelligence"
+version = "0.1.0"
+description = "Manufacturing cost model: ingestion, standard vs. actual variance, reconciliation and period close"
+requires-python = ">=3.11"
+readme = "README.md"
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+extend-exclude = ["dbt/target", "dbt/logs", "data", "tableau/extracts", "exports"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM"]
+ignore = ["B008"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["common", "data_generator", "ingestion", "quality", "close", "exporter", "mci_tasks"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = [".", "airflow/dags"]
+markers = [
+    "integration: needs a running Postgres warehouse that the full pipeline has been run against",
+]
+addopts = "-ra"

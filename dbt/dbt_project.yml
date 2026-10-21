@@ -1,0 +1,44 @@
+name: mci
+version: "0.1.0"
+config-version: 2
+profile: mci
+
+model-paths: ["models"]
+macro-paths: ["macros"]
+test-paths: ["tests"]
+seed-paths: ["seeds"]
+target-path: "target"
+clean-targets: ["target", "dbt_packages", "logs"]
+
+flags:
+  send_anonymous_usage_stats: false
+
+vars:
+  # Incremental models reprocess anything loaded within this many days of the
+  # newest row already in the target (late-arriving / in-flight loads).
+  lookback_days: 3
+  # Three-way match tolerances
+  qty_tolerance_pct: 0.02
+  price_tolerance_pct: 0.05
+  # Reconciliation: |diff| under this is "within tolerance" instead of an exception
+  recon_tolerance_usd: 1.00
+  # |diff| above this blocks period-close sign-off
+  materiality_usd: 1000
+
+models:
+  mci:
+    +materialized: table
+    staging:
+      +schema: staging
+      +materialized: view
+    intermediate:
+      +schema: intermediate
+    marts:
+      +schema: marts
+    reconciliation:
+      +schema: recon
+      +tags: ["reconciliation"]
+
+data_tests:
+  mci:
+    +store_failures: false

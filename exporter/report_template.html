@@ -1,0 +1,448 @@
+<title>Manufacturing Cost Review</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap">
+<style>
+/* Layout: a single reading column like a cost-review memo; each finding = headline, plain-English read, chart, data table. */
+:root {
+  --bg: #f4f6f8;
+  --paper: #ffffff;
+  --ink: #14181d;
+  --ink-2: #4c5560;
+  --ink-3: #7a838e;
+  --rule: #dfe3e8;
+  --grid: #eceff2;
+  --accent: #2a78d6;
+  --context: #c3c9d0;
+  --over: #c43c3c;
+  --under: #2a78d6;
+  --mid: #eef0f2;
+  --good: #0c8a0c;
+  --bad: #d03b3b;
+  --wait: #9a6a00;
+  --good-bg: #e7f5e7;
+  --bad-bg: #fbeaea;
+  --wait-bg: #fbf2dd;
+  --display: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
+  --body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111418; --paper: #181c21; --ink: #eef1f4; --ink-2: #b4bcc6; --ink-3: #8a939e;
+    --rule: #2b3139; --grid: #232830; --accent: #3987e5; --context: #4a525c;
+    --over: #e66767; --under: #3987e5; --mid: #262b32;
+    --good: #2fbf2f; --bad: #ef6b6b; --wait: #e0a72a; --good-bg: #13301a; --bad-bg: #3a1a1a; --wait-bg: #33290f;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111418; --paper: #181c21; --ink: #eef1f4; --ink-2: #b4bcc6; --ink-3: #8a939e;
+  --rule: #2b3139; --grid: #232830; --accent: #3987e5; --context: #4a525c;
+  --over: #e66767; --under: #3987e5; --mid: #262b32;
+  --good: #2fbf2f; --bad: #ef6b6b; --wait: #e0a72a; --good-bg: #13301a; --bad-bg: #3a1a1a; --wait-bg: #33290f;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 16px; line-height: 1.55; }
+.wrap { max-width: 860px; margin: 0 auto; padding-block: 40px 64px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+h1, h2, h3 { font-family: var(--display); font-weight: 600; text-wrap: balance; margin: 0; letter-spacing: -0.01em; }
+h1 { font-size: clamp(30px, 6vw, 44px); line-height: 1.08; }
+h2 { font-size: clamp(22px, 4vw, 28px); line-height: 1.2; }
+h3 { font-size: 18px; }
+p { margin: 0; max-width: 66ch; }
+.eyebrow { font-family: var(--mono); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); }
+.num, .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+header { display: grid; gap: 14px; padding-bottom: 28px; border-bottom: 1px solid var(--rule); }
+header .lede { font-size: 18px; color: var(--ink-2); }
+.note { font-size: 13px; color: var(--ink-3); }
+
+.kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; background: var(--rule);
+  border: 1px solid var(--rule); border-radius: 6px; overflow: hidden; margin-top: 28px; }
+.kpi { background: var(--paper); padding: 16px 18px; display: grid; gap: 4px; }
+.kpi .v { font-family: var(--mono); font-size: 24px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.kpi .l { font-size: 13px; color: var(--ink-2); }
+.kpi.hl .v { color: var(--over); }
+@media (max-width: 640px) { .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+.summary { margin-top: 32px; display: grid; gap: 14px; }
+.summary ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 12px; }
+.summary li { display: grid; grid-template-columns: 22px 1fr; gap: 10px; align-items: baseline; }
+.summary li .mk { font-family: var(--mono); font-size: 13px; color: var(--ink-3); }
+.summary li b { font-weight: 600; }
+
+section.finding { margin-top: 56px; display: grid; gap: 14px; }
+section.finding > .read { color: var(--ink-2); }
+.figure { background: var(--paper); border: 1px solid var(--rule); border-radius: 6px; padding: 18px 18px 10px; min-width: 0; }
+.figure .legend { display: flex; flex-wrap: wrap; gap: 16px; font-size: 13px; color: var(--ink-2); margin-bottom: 8px; }
+.figure .legend span { display: inline-flex; align-items: center; gap: 6px; }
+.sw { width: 14px; height: 3px; border-radius: 2px; display: inline-block; }
+.sw.box { height: 12px; width: 12px; border-radius: 2px; }
+.chart { width: 100%; position: relative; }
+.chart svg { display: block; width: 100%; height: auto; overflow: visible; }
+.chart text { font-family: var(--mono); font-size: 11px; fill: var(--ink-3); }
+.chart text.lab { font-family: var(--body); font-size: 13px; fill: var(--ink); }
+.chart text.val { fill: var(--ink-2); font-size: 12px; }
+.howto { font-size: 13px; color: var(--ink-3); margin-top: 6px; }
+.action { border-left: 3px solid var(--accent); padding: 4px 0 4px 14px; color: var(--ink); max-width: 66ch; }
+.action b { font-weight: 600; }
+
+details { margin-top: 10px; font-size: 13px; }
+details summary { cursor: pointer; color: var(--accent); width: max-content; }
+details summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.tbl { overflow-x: auto; margin-top: 8px; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+th { font-weight: 600; color: var(--ink-2); font-size: 12px; }
+td.r, th.r { text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+.months { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 6px; }
+.m { border-radius: 4px; padding: 8px 4px; text-align: center; display: grid; gap: 2px; font-size: 12px; }
+.m .ic { font-size: 15px; line-height: 1; font-weight: 600; }
+.m.ok { background: var(--good-bg); color: var(--good); }
+.m.bad { background: var(--bad-bg); color: var(--bad); }
+.m.wait { background: var(--wait-bg); color: var(--wait); }
+@media (max-width: 640px) { .months { grid-template-columns: repeat(6, minmax(0, 1fr)); } }
+.statuskey { display: flex; flex-wrap: wrap; gap: 16px; font-size: 13px; color: var(--ink-2); margin-top: 10px; }
+
+.pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+@media (max-width: 700px) { .pair { grid-template-columns: 1fr; } }
+.stat { font-family: var(--mono); font-size: 30px; font-weight: 500; }
+
+.glossary { margin-top: 56px; display: grid; gap: 14px; }
+dl { display: grid; grid-template-columns: max-content 1fr; gap: 10px 20px; margin: 0; }
+dt { font-weight: 600; }
+dd { margin: 0; color: var(--ink-2); max-width: 60ch; }
+@media (max-width: 560px) { dl { grid-template-columns: 1fr; gap: 2px 0; } dd { margin-bottom: 10px; } }
+footer { margin-top: 56px; padding-top: 20px; border-top: 1px solid var(--rule); display: grid; gap: 8px; font-size: 13px; color: var(--ink-3); }
+footer a, a { color: var(--accent); }
+
+#tip { position: fixed; pointer-events: none; background: var(--ink); color: var(--paper); font-size: 12px; line-height: 1.45;
+  padding: 7px 10px; border-radius: 4px; max-width: 260px; z-index: 20; font-family: var(--body); }
+#tip b { font-family: var(--mono); font-weight: 500; }
+@media (prefers-reduced-motion: no-preference) { .chart rect, .chart path { transition: opacity .15s; } }
+</style>
+
+<div class="wrap" id="app"></div>
+<div id="tip" hidden></div>
+
+<script>
+const D = /*__DATA__*/null;
+const $ = (s, el = document) => el.querySelector(s);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const money = (v, d = 1) => { const a = Math.abs(v), s = v < 0 ? "−" : "";
+  return a >= 1e9 ? `${s}$${(a/1e9).toFixed(2)}B` : a >= 1e6 ? `${s}$${(a/1e6).toFixed(d)}M` : a >= 1e3 ? `${s}$${(a/1e3).toFixed(d)}K` : `${s}$${a.toFixed(0)}`; };
+const pct = (v, d = 1) => `${(v*100).toFixed(d)}%`;
+const spct = (v, d = 1) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(v*100).toFixed(d)}%`;
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const NS = "http://www.w3.org/2000/svg";
+function svgEl(tag, attrs, parent) { const e = document.createElementNS(NS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; }
+
+/* tooltip */
+const tip = $("#tip");
+function showTip(html, ev) { tip.innerHTML = html; tip.hidden = false; moveTip(ev); }
+function moveTip(ev) { const pad = 14, w = tip.offsetWidth, h = tip.offsetHeight;
+  let x = ev.clientX + pad, y = ev.clientY + pad;
+  if (x + w > innerWidth - 8) x = ev.clientX - w - pad; if (y + h > innerHeight - 8) y = ev.clientY - h - pad;
+  tip.style.left = x + "px"; tip.style.top = y + "px"; }
+function hideTip() { tip.hidden = true; }
+function hover(el, html) { el.addEventListener("pointerenter", e => showTip(html, e));
+  el.addEventListener("pointermove", moveTip); el.addEventListener("pointerleave", hideTip); }
+
+function table(head, rows, rightCols = []) {
+  return `<div class="tbl"><table><thead><tr>${head.map((h, i) => `<th class="${rightCols.includes(i) ? "r" : ""}">${h}</th>`).join("")}</tr></thead>
+  <tbody>${rows.map(r => `<tr>${r.map((c, i) => `<td class="${rightCols.includes(i) ? "r" : ""}">${c}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
+}
+
+/* ------------------------------------------------------------------ page text */
+const K = D.kpi, U = D.usage_line, S = D.supplier, SC = D.scrap, Q = D.quality;
+const topEl = D.elements[0];
+const usageShare = U.amount / K.var;
+const blockedFirst = D.close.find(c => c.status !== "signed_off");
+const signed = D.close.filter(c => c.status === "signed_off").length;
+
+$("#app").innerHTML = `
+<header>
+  <div class="eyebrow">Manufacturing cost review · ${esc(K.from)} – ${esc(K.to)} · 3 plants, 6 production lines</div>
+  <h1>Production cost ${money(K.var)} over standard, and most of it traces to one line</h1>
+  <p class="lede">This report is produced automatically by a data pipeline that pulls production, material, labor, scrap,
+  purchasing and ledger records together, compares what each product <em>should</em> have cost with what it <em>did</em> cost,
+  and checks that the accounting books agree with the factory records before a month can be closed.</p>
+  <p class="note">All data is synthetic, generated for this portfolio project with known problems planted in it, so you can check
+  that the pipeline finds each one. Plants, suppliers and products are fictional. Report built ${esc(D.generated)}.</p>
+</header>
+
+<div class="kpis" role="group" aria-label="Headline figures">
+  <div class="kpi"><span class="l">Planned (standard) cost</span><span class="v">${money(K.std, 2)}</span></div>
+  <div class="kpi"><span class="l">Actual cost</span><span class="v">${money(K.act, 2)}</span></div>
+  <div class="kpi hl"><span class="l">Over plan</span><span class="v">${money(K.var)} <small style="font-size:14px">(${spct(K.pct, 2)})</small></span></div>
+  <div class="kpi"><span class="l">Units built (${K.orders.toLocaleString()} orders)</span><span class="v">${(K.units/1000).toFixed(0)}K</span></div>
+</div>
+
+<div class="summary">
+  <h2>What to take away</h2>
+  <ul>
+    <li><span class="mk">→</span><span><b>${esc(U.line)} used ${pct(U.pct)} more material than its products need, every month of the year.</b>
+      That is ${money(U.amount)}, or ${pct(usageShare, 0)} of the whole overrun. Every other line is within a rounding error of plan.</span></li>
+    <li><span class="mk">→</span><span><b>Supplier ${esc(S.name)} raised prices about ${Math.round(S.after - S.before)}% in ${S.month}</b> and kept them there,
+      adding ${money(S.extra_cost)} over standard by year end.</span></li>
+    <li><span class="mk">→</span><span><b>Scrap on ${esc(SC.line)} tripled in ${SC.months.join(" and ")}</b> (${pct(SC.peak)} of material vs. ${pct(SC.normal)} normally),
+      ${pct(SC.reason_share, 0)} of it logged as ${esc(SC.reason)}.</span></li>
+    <li><span class="mk">→</span><span><b>The general ledger disagreed with the factory records in ${D.breaks.length} places.</b> The pipeline found every one,
+      named the cause, and stopped ${esc(blockedFirst ? blockedFirst.month : "")} from being closed until they were fixed.</span></li>
+    <li><span class="mk">→</span><span><b>The numbers can be trusted:</b> ${Q.passed + Q.warned} of ${Q.tests} automated checks pass, and work-in-progress
+      balances tie to the cent for all ${D.wip.total} plant-months.</span></li>
+  </ul>
+</div>
+
+<section class="finding" id="drivers">
+  <div class="eyebrow">1 · Where the overrun came from</div>
+  <h2>${pct(topEl.amount / K.var, 0)} of the extra cost is material used beyond what the bill of materials allows</h2>
+  <p class="read">Every finished order is compared with its standard cost: the materials its bill of materials lists, at planned prices,
+  plus planned labor hours. The difference is split into six causes, and the six add up exactly to the total overrun.</p>
+  <div class="figure"><div class="chart" id="c-elements"></div>
+    <p class="howto">Each bar is extra cost against plan for the year. Hover a bar for what it means.</p>
+    <details><summary>Show as a table</summary>${table(["Cause", "What happened", "Over plan"],
+      D.elements.map(e => [esc(e.label), esc(e.meaning), money(e.amount, 2)]), [2])}</details>
+  </div>
+</section>
+
+<section class="finding" id="lines">
+  <div class="eyebrow">2 · Which production line</div>
+  <h2>${esc(U.line)} ran ${pct(U.pct)} over on material for ${U.months_over} months straight</h2>
+  <p class="read">Each square is one production line in one month, colored by how much more (red) or less (blue) material it used than
+  standard. A one-off bad week would show as a single red square. A full red row means the problem is built into the process.</p>
+  <div class="figure">
+    <div class="legend"><span><i class="sw box" style="background:var(--under)"></i>Less material than plan</span>
+      <span><i class="sw box" style="background:var(--mid);outline:1px solid var(--rule)"></i>On plan</span>
+      <span><i class="sw box" style="background:var(--over)"></i>More material than plan</span></div>
+    <div class="chart" id="c-heat"></div>
+    <details><summary>Show as a table</summary>${table(["Line", "Month", "Material over plan", "% of standard"],
+      D.heat.map(h => [esc(h.line), h.month, money(h.amount), spct(h.pct, 2)]), [2, 3])}</details>
+  </div>
+  <p class="action"><b>Next step:</b> walk ${esc(U.line)} with process engineering and check its kitting quantities and machine settings
+  against the bill of materials. The other five lines show it can be built to standard.</p>
+</section>
+
+<section class="finding" id="supplier">
+  <div class="eyebrow">3 · Purchase prices</div>
+  <h2>${esc(S.name)} raised prices in ${S.month}, from ${Math.round(S.before)} to ${Math.round(S.after)} on a 100 = standard scale</h2>
+  <p class="read">Each line is a supplier's average invoice price compared with the standard price, where 100 means exactly on standard.
+  Most suppliers drift a point or two. One jumps and stays up.</p>
+  <div class="figure">
+    <div class="legend"><span><i class="sw" style="background:var(--over)"></i>${esc(S.name)}</span>
+      <span><i class="sw" style="background:var(--context)"></i>The other ${new Set(S.series.map(s => s.supplier)).size - 1} suppliers</span></div>
+    <div class="chart" id="c-supplier"></div>
+    <details><summary>Show as a table</summary>${table(["Month", esc(S.name), "Other suppliers (average)"],
+      MONTHS.map(m => { const own = S.series.find(s => s.supplier === S.id && s.month === m);
+        const oth = S.series.filter(s => s.supplier !== S.id && s.month === m);
+        return [m, own ? own.index.toFixed(1) : "–", oth.length ? (oth.reduce((a, b) => a + b.index, 0) / oth.length).toFixed(1) : "–"]; }), [1, 2])}</details>
+  </div>
+  <p class="action"><b>Next step:</b> procurement to check whether the increase was agreed in the contract. If it wasn't, the
+  ${money(S.extra_cost)} is recoverable; if it was, next year's standard price should include it.</p>
+</section>
+
+<section class="finding" id="scrap">
+  <div class="eyebrow">4 · Scrap</div>
+  <h2>Scrap on ${esc(SC.line)} tripled in ${SC.months.join(" and ")}, mostly from machine faults</h2>
+  <p class="read">Scrap rate is the value of material thrown away as a share of material issued to the line. Every line runs near
+  ${pct(SC.normal)}. The spike lasted two months and then returned to normal, which points to an equipment problem that was fixed.</p>
+  <div class="figure">
+    <div class="legend"><span><i class="sw" style="background:var(--over)"></i>${esc(SC.highlight)}</span>
+      <span><i class="sw" style="background:var(--context)"></i>Other lines</span></div>
+    <div class="chart" id="c-scrap"></div>
+    <details><summary>Show as a table</summary>${table(["Line", "Month", "Scrap rate"],
+      SC.series.map(s => [esc(s.line), s.month, pct(s.rate, 2)]), [2])}</details>
+  </div>
+</section>
+
+<section class="finding" id="close">
+  <div class="eyebrow">5 · Do the books agree?</div>
+  <h2>The ledger and the factory records disagreed ${D.breaks.length} times, and the pipeline caught all of them</h2>
+  <p class="read">Every factory transaction (material issued, labor booked, goods shipped) should appear in the general ledger, the
+  company's official books. The pipeline rebuilds what the ledger <em>should</em> say from the factory records, compares the two
+  day by day, and names the cause of each difference.</p>
+  <div class="figure">
+    ${table(["When", "Plant", "What went wrong", "Amount"],
+      D.breaks.map(b => [b.month, esc(b.plants), `<b>${esc(b.cause)}.</b> ${esc(b.what)}`, money(b.amount, 2)]), [3])}
+    <p class="howto">Apart from these ${D.breaks.length}, every account at every plant matches to the cent for the whole year.</p>
+  </div>
+  <h3 style="margin-top:12px">Month-end close: a month can only be signed off when its books agree</h3>
+  <div class="figure">
+    <div class="months">${D.close.map(c => {
+      const cls = c.status === "signed_off" ? "ok" : c.why.startsWith("Waiting") ? "wait" : "bad";
+      const ic = cls === "ok" ? "✓" : cls === "wait" ? "…" : "✕";
+      const label = cls === "ok" ? "Closed" : cls === "wait" ? "Waiting" : "Blocked";
+      return `<div class="m ${cls}" data-why="${esc(c.why)}" data-month="${c.month}" data-label="${label}"><span class="ic" aria-hidden="true">${ic}</span>
+        <span>${c.month}</span><span style="font-size:11px">${label}</span></div>`; }).join("")}</div>
+    <div class="statuskey"><span>✓ Closed: books agree</span><span>✕ Blocked: a difference above $1,000</span><span>… Waiting: months close in order</span></div>
+  </div>
+  <p class="action"><b>What happens next:</b> the pipeline drafts ${D.corrections} correcting journal entries for an accountant to review.
+  Once they are posted and the data reloads, all 12 months close. A closed month is locked and can never be rewritten.</p>
+</section>
+
+<section class="finding" id="paperwork">
+  <div class="eyebrow">6 · Purchasing paperwork and inventory</div>
+  <h2>${pct(D.three_way.clean / D.three_way.total, 0)} of purchase orders match their receipt and invoice; the rest are listed for follow-up</h2>
+  <p class="read">For every purchase the pipeline checks three documents against each other: what was ordered, what arrived at the dock,
+  and what the supplier billed. Mismatches mean money at risk of being paid twice or paid for goods never received.</p>
+  <div class="figure"><div class="chart" id="c-match"></div>
+    <p class="howto">Value of documents in each exception group. Hover for the count.</p>
+    <details><summary>Show as a table</summary>${table(["Exception", "Documents", "Value"],
+      D.three_way.exceptions.map(e => [esc(e.label), e.count.toLocaleString(), money(e.amount, 2)]), [1, 2])}</details>
+  </div>
+  <div class="pair">
+    <div class="figure"><div class="eyebrow">Inventory shrink, from physical counts</div>
+      ${table(["Plant", "Counts taken", "Missing stock"], D.inventory.map(i => [esc(i.plant), i.counts, money(i.shrink)]), [1, 2])}
+      <p class="howto">Value of stock the ERP said was there but the count did not find.</p></div>
+    <div class="figure"><div class="eyebrow">Work-in-progress check</div>
+      <div class="stat">${D.wip.ties} / ${D.wip.total}</div>
+      <p class="howto">Plant-months where opening balance + material + labor + overhead − finished goods − scrap equals the closing
+      balance of open orders, to the cent.</p></div>
+  </div>
+</section>
+
+<section class="finding" id="quality">
+  <div class="eyebrow">7 · Can you trust the data?</div>
+  <h2>Bad records are caught on the way in and counted, never silently dropped</h2>
+  <div class="figure">
+    ${table(["Check", "Result"], [
+      ["Source records loaded", Q.rows.toLocaleString()],
+      ["Rejected at load (e.g. negative quantities, 30-hour shifts)", Q.rejects.toLocaleString()],
+      ["Duplicate supplier invoices flagged, not paid twice", Q.dupes.toLocaleString()],
+      ["Material issues entered in grams, converted to kilograms", Q.grams.toLocaleString()],
+      ["Late labor bookings moved into the open month", Q.late.toLocaleString()],
+      ["Automated checks passing (warnings are the known problems above)", `${Q.passed} pass · ${Q.warned} warn · ${Q.failed} fail`],
+    ], [1])}
+  </div>
+</section>
+
+<section class="glossary">
+  <h2>Terms used</h2>
+  <dl>
+    <dt>Standard cost</dt><dd>What a product should cost: the materials on its bill of materials at planned prices, plus planned labor and overhead.</dd>
+    <dt>Variance</dt><dd>Actual cost minus standard cost. Positive means it cost more than planned.</dd>
+    <dt>Bill of materials</dt><dd>The recipe for a product: which parts and how much of each, including a small planned scrap allowance.</dd>
+    <dt>General ledger</dt><dd>The company's official accounting books, which the financial statements are built from.</dd>
+    <dt>Work in progress</dt><dd>The value of materials and labor in products that are started but not finished.</dd>
+    <dt>Month-end close</dt><dd>Checking and locking a month's numbers so they can be reported. Closed months cannot change.</dd>
+    <dt>Three-way match</dt><dd>Checking that the purchase order, the goods receipt and the supplier invoice agree before paying.</dd>
+  </dl>
+</section>
+
+<footer>
+  <span>Built with Python, SQL, PostgreSQL, dbt, Airflow, Docker and Kubernetes. Every figure comes from the pipeline's output tables.</span>
+  ${D.repo ? `<span>Source code: <a href="${esc(D.repo)}">${esc(D.repo.replace(/^https?:\/\//, ""))}</a></span>` : ""}
+</footer>`;
+
+/* ------------------------------------------------------------------ charts */
+function hbars(el, rows, opts) {
+  // labels sit beside the bars when there is room, above them when labels are long or the screen is narrow
+  const W = el.clientWidth, above = opts.labelAbove || W < 520;
+  const labelW = above ? 0 : Math.min(190, W * 0.38), valW = 70, bh = 22, gap = 12, lh = above ? 20 : 0;
+  const H = rows.length * (bh + gap + lh);
+  el.innerHTML = ""; const s = svgEl("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": opts.aria }, el);
+  const max = Math.max(...rows.map(r => r.v)), x = v => (v / max) * (W - labelW - valW);
+  rows.forEach((r, i) => {
+    const y = i * (bh + gap + lh) + lh;
+    svgEl("text", { x: 0, y: above ? y - 6 : y + bh / 2 + 4, class: "lab" }, s).textContent = r.label;
+    const w = Math.max(2, x(r.v));
+    const b = svgEl("rect", { x: labelW, y, width: w, height: bh, rx: 3, fill: css(opts.color) }, s);
+    svgEl("text", { x: labelW + w + 8, y: y + bh / 2 + 4, class: "val" }, s).textContent = r.text;
+    const hit = svgEl("rect", { x: 0, y: y - lh - gap / 2, width: W, height: bh + gap + lh, fill: "transparent" }, s);
+    hover(hit, r.tip);
+    hit.addEventListener("pointerenter", () => b.style.opacity = .75); hit.addEventListener("pointerleave", () => b.style.opacity = 1);
+  });
+}
+
+function heatColor(v, lim) {
+  const t = Math.max(-1, Math.min(1, v / lim)), mid = css("--mid");
+  const to = css(t >= 0 ? "--over" : "--under");
+  return mix(mid, to, Math.pow(Math.abs(t), 0.7));
+}
+function hex(c) { c = c.replace("#", ""); return [0, 2, 4].map(i => parseInt(c.slice(i, i + 2), 16)); }
+function mix(a, b, t) { const A = hex(a), B = hex(b); return "rgb(" + A.map((v, i) => Math.round(v + (B[i] - v) * t)).join(",") + ")"; }
+
+function heatmap(el) {
+  const W = el.clientWidth, labelW = Math.min(120, W * 0.26), top = 20, ch = 30, gap = 2;
+  const cw = (W - labelW) / 12, H = top + D.lines.length * (ch + gap);
+  el.innerHTML = ""; const s = svgEl("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Material usage over plan by line and month" }, el);
+  MONTHS.forEach((m, j) => { const t = svgEl("text", { x: labelW + j * cw + cw / 2, y: 12, "text-anchor": "middle" }, s); t.textContent = cw < 34 ? m[0] : m; });
+  D.lines.forEach((ln, i) => {
+    const y = top + i * (ch + gap);
+    svgEl("text", { x: 0, y: y + ch / 2 + 4, class: "lab" }, s).textContent = W < 520 ? ln.replace(" line ", " ") : ln;
+    MONTHS.forEach((m, j) => {
+      const c = D.heat.find(h => h.line === ln && h.month === m); if (!c) return;
+      const r = svgEl("rect", { x: labelW + j * cw + gap / 2, y, width: cw - gap, height: ch, rx: 2, fill: heatColor(c.pct, 0.06) }, s);
+      if (Math.abs(c.pct) >= 0.01 && cw >= 34) { const t = svgEl("text", { x: labelW + j * cw + cw / 2, y: y + ch / 2 + 4, "text-anchor": "middle" }, s);
+        t.textContent = spct(c.pct, 1); t.style.fill = "#fff"; t.style.pointerEvents = "none"; }
+      hover(r, `${esc(ln)} · ${m}<br>Material vs plan: <b>${spct(c.pct, 2)}</b><br>Extra cost: <b>${money(c.amount)}</b>`);
+    });
+  });
+}
+
+function lines(el, series, opts) {
+  // series: [{key, highlight, points:[{m, v}]}]
+  const W = el.clientWidth, H = Math.round(Math.min(300, Math.max(220, W * 0.42))), l = 44, r = 64, t = 10, b = 26;
+  const vals = series.flatMap(s => s.points.map(p => p.v)), lo = Math.min(opts.min ?? Infinity, ...vals), hi = Math.max(...vals);
+  const pad = (hi - lo) * 0.08, y0 = opts.min === 0 ? 0 : lo - pad, y1 = hi + pad;
+  const x = j => l + (j / 11) * (W - l - r), y = v => t + (1 - (v - y0) / (y1 - y0)) * (H - t - b);
+  el.innerHTML = ""; const s = svgEl("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": opts.aria }, el);
+  const ticks = 4; for (let i = 0; i <= ticks; i++) { const v = y0 + (i / ticks) * (y1 - y0);
+    svgEl("line", { x1: l, x2: W - r, y1: y(v), y2: y(v), stroke: css("--grid") }, s);
+    svgEl("text", { x: l - 8, y: y(v) + 4, "text-anchor": "end" }, s).textContent = opts.fmt(v); }
+  MONTHS.forEach((m, j) => { if (W < 480 && j % 2) return; svgEl("text", { x: x(j), y: H - 6, "text-anchor": "middle" }, s).textContent = m; });
+  if (opts.ref != null) { svgEl("line", { x1: l, x2: W - r, y1: y(opts.ref), y2: y(opts.ref), stroke: css("--ink-3"), "stroke-dasharray": "3 3" }, s);
+    svgEl("text", { x: W - r + 6, y: y(opts.ref) + 4 }, s).textContent = opts.refLabel; }
+  const path = pts => pts.map((p, k) => `${k ? "L" : "M"}${x(MONTHS.indexOf(p.m)).toFixed(1)},${y(p.v).toFixed(1)}`).join("");
+  series.filter(z => !z.highlight).forEach(z => svgEl("path", { d: path(z.points), fill: "none", stroke: css("--context"), "stroke-width": 1.25 }, s));
+  const hl = series.find(z => z.highlight);
+  svgEl("path", { d: path(hl.points), fill: "none", stroke: css("--over"), "stroke-width": 2.5, "stroke-linejoin": "round" }, s);
+  const last = hl.points[hl.points.length - 1];
+  svgEl("circle", { cx: x(MONTHS.indexOf(last.m)), cy: y(last.v), r: 4, fill: css("--over"), stroke: css("--paper"), "stroke-width": 2 }, s);
+  svgEl("text", { x: x(MONTHS.indexOf(last.m)) + 8, y: y(last.v) + 4, class: "val" }, s).textContent = opts.fmt(last.v);
+  // crosshair
+  const cross = svgEl("line", { y1: t, y2: H - b, stroke: css("--ink-3"), visibility: "hidden" }, s);
+  const dot = svgEl("circle", { r: 5, fill: css("--over"), stroke: css("--paper"), "stroke-width": 2, visibility: "hidden" }, s);
+  const hit = svgEl("rect", { x: l, y: t, width: W - l - r, height: H - t - b, fill: "transparent" }, s);
+  hit.addEventListener("pointermove", ev => {
+    const bb = s.getBoundingClientRect(), px = (ev.clientX - bb.left) * (W / bb.width);
+    const j = Math.max(0, Math.min(11, Math.round((px - l) / (W - l - r) * 11))), m = MONTHS[j];
+    const p = hl.points.find(q => q.m === m); if (!p) return;
+    const others = series.filter(z => !z.highlight).map(z => z.points.find(q => q.m === m)).filter(Boolean).map(q => q.v);
+    const avg = others.reduce((a, b) => a + b, 0) / (others.length || 1);
+    cross.setAttribute("x1", x(j)); cross.setAttribute("x2", x(j)); cross.setAttribute("visibility", "visible");
+    dot.setAttribute("cx", x(j)); dot.setAttribute("cy", y(p.v)); dot.setAttribute("visibility", "visible");
+    showTip(`${m}<br>${esc(hl.key)}: <b>${opts.fmt(p.v)}</b><br>${opts.othersLabel}: <b>${opts.fmt(avg)}</b>`, ev);
+  });
+  hit.addEventListener("pointerleave", () => { cross.setAttribute("visibility", "hidden"); dot.setAttribute("visibility", "hidden"); hideTip(); });
+}
+
+function groupSeries(rows, keyF, valF, hlKey, labelF) {
+  const m = new Map(); rows.forEach(r => { const k = keyF(r); if (!m.has(k)) m.set(k, []); m.get(k).push({ m: r.month, v: valF(r) }); });
+  return [...m].map(([k, pts]) => ({ key: labelF ? labelF(k) : k, highlight: k === hlKey, points: pts }));
+}
+
+function drawAll() {
+  hbars($("#c-elements"), D.elements.map(e => ({ label: e.label, v: e.amount, text: money(e.amount),
+    tip: `<b>${money(e.amount, 2)}</b> over plan<br>${esc(e.meaning)}` })), { color: "--over", aria: "Extra cost by cause" });
+  heatmap($("#c-heat"));
+  lines($("#c-supplier"), groupSeries(S.series, r => r.supplier, r => r.index, S.id, k => k === S.id ? S.name : k),
+    { fmt: v => v.toFixed(0), ref: 100, refLabel: "standard", othersLabel: "Other suppliers, average", aria: "Supplier price index by month" });
+  lines($("#c-scrap"), groupSeries(SC.series, r => r.line, r => r.rate, SC.highlight), { fmt: v => pct(v, 1), min: 0,
+    othersLabel: "Other lines, average", aria: "Scrap rate by line and month" });
+  const ex = D.three_way.exceptions.filter(e => !e.label.startsWith("Receipt waiting"));
+  hbars($("#c-match"), ex.map(e => ({ label: e.label, v: e.amount, text: money(e.amount),
+    tip: `<b>${e.count.toLocaleString()}</b> documents · <b>${money(e.amount, 2)}</b>` })), { color: "--accent", labelAbove: true, aria: "Purchase document exceptions by value" });
+}
+document.querySelectorAll(".m").forEach(m => hover(m, `${m.dataset.month}: <b>${m.dataset.label}</b>${m.dataset.why ? "<br>" + esc(m.dataset.why) : ""}`));
+drawAll();
+let rt, lastW = $("#app").clientWidth;
+new ResizeObserver(() => { const w = $("#app").clientWidth; if (w === lastW) return; lastW = w;
+  clearTimeout(rt); rt = setTimeout(drawAll, 120); }).observe($("#app"));
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", drawAll);
+new MutationObserver(drawAll).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+</script>

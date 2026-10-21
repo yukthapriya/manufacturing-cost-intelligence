@@ -1,0 +1,4 @@
+# Optional: dashboard preview without Tableau, and .hyper extracts
+streamlit>=1.48
+plotly>=5.20
+tableauhyperapi>=0.0.19

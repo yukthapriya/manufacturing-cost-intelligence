@@ -1,0 +1,27 @@
+# secrets
+.env
+k8s/base/secrets.env
+k8s/overlays/prod/secrets.env
+infra/terraform/terraform.tfvars
+infra/terraform/.terraform/
+*.tfstate*
+
+# generated data and outputs
+data/
+exports/
+tableau/extracts/
+benchmarks/*.log
+
+# dbt
+dbt/target/
+dbt/logs/
+dbt/dbt_packages/
+dbt/.user.yml
+
+# python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.ruff_cache/
+hyperd*.log

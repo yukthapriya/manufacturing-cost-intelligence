@@ -1,0 +1,28 @@
+# Keep build contexts small and free of local state / secrets.
+.git
+.github
+.gitignore
+.venv
+venv
+**/__pycache__
+**/*.pyc
+**/*.pyo
+.pytest_cache
+.ruff_cache
+.mypy_cache
+
+# generated / local data
+data/
+tableau/extracts/
+exports/
+dbt/target
+dbt/logs
+dbt/dbt_packages
+logs/
+
+# secrets and infra state
+.env
+k8s/base/secrets.env
+infra/terraform/.terraform
+infra/terraform/*.tfstate*
+infra/terraform/terraform.tfvars

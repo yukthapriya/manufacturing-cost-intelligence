@@ -1,0 +1,10 @@
+# Dev (kind): base as-is with smaller footprints.
+#   kubectl apply -k k8s/overlays/dev
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../base
+
+patches:
+  - path: resources-small.yaml

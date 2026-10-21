@@ -1,0 +1,28 @@
+# Copy to terraform.tfvars (gitignored) and adjust. Secrets go in env vars:
+#   export TF_VAR_db_password='...'
+
+aws_region  = "us-east-1"
+environment = "dev"
+name_prefix = "mci"
+
+# raw_bucket_name = "mci-dev-raw-123456789012"
+force_destroy_bucket = true # demo convenience
+
+# IRSA: the EKS cluster's OIDC provider ARN.
+# eks_oidc_provider_arn = "arn:aws:iam::123456789012:oidc-provider/oidc.eks.us-east-1.amazonaws.com/id/EXAMPLED539D4633E53DE1B71EXAMPLE"
+k8s_namespace       = "mci"
+k8s_service_account = "mci-runner"
+
+# Or, for MWAA / CI without IRSA:
+# trusted_principal_arns = ["arn:aws:iam::123456789012:role/mwaa-mci-execution"]
+
+create_rds = false
+
+# Required when create_rds = true:
+# vpc_id        = "vpc-0123456789abcdef0"
+# db_subnet_ids = ["subnet-0aaaaaaaaaaaaaaaa", "subnet-0bbbbbbbbbbbbbbbb"]
+
+db_allowed_cidr   = "10.0.0.0/16"
+db_instance_class = "db.t4g.micro"
+db_name           = "mfg_cost"
+db_username       = "mci"

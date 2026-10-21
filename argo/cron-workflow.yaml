@@ -1,0 +1,29 @@
+# Runs the daily pipeline at 02:15 America/Chicago for the previous day.
+#
+# `date` is left empty so the template's resolve-date step computes
+# "yesterday" in America/Chicago at run time (more robust than templating
+# workflow.creationTimestamp, which is UTC). Backfill a specific day with:
+#   argo submit -n mci --from workflowtemplate/mci-daily-pipeline -p date=2025-01-15
+apiVersion: argoproj.io/v1alpha1
+kind: CronWorkflow
+metadata:
+  name: mci-daily-pipeline
+  namespace: mci
+  labels:
+    app.kubernetes.io/part-of: manufacturing-cost-intelligence
+spec:
+  schedule: "15 2 * * *"
+  timezone: America/Chicago
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 3600
+  successfulJobsHistoryLimit: 7
+  failedJobsHistoryLimit: 14
+  workflowSpec:
+    workflowTemplateRef:
+      name: mci-daily-pipeline
+    arguments:
+      parameters:
+        - name: date
+          value: ""
+        - name: image-tag
+          value: "0.1.0"

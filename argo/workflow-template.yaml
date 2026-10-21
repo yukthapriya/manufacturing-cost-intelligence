@@ -1,0 +1,337 @@
+# Argo Workflows equivalents of the Airflow DAGs (Argo >= 3.4).
+#
+#   kubectl apply -n mci -f argo/workflow-template.yaml
+#   argo submit -n mci --from workflowtemplate/mci-daily-pipeline -p date=2025-01-15
+#   argo submit -n mci --from workflowtemplate/mci-month-end-close -p period=2025-01
+#
+# Requires k8s/base (ServiceAccount mci-runner, ConfigMap mci-config, Secret
+# mci-secrets, PVC mci-exports from k8s/base/exports-pvc.yaml). Images are
+#   {{workflow.parameters.image-prefix}}mci-<name>:{{workflow.parameters.image-tag}}
+# so prod can point image-prefix at ECR ("<acct>.dkr.ecr.<region>.amazonaws.com/").
+#
+# Shared state between steps:
+#  - `work` (per-workflow PVC) is mounted at /app/dbt/target so publish-dq can
+#    read the run_results.json written by dbt-build.
+#  - `mci-exports` (persistent PVC from k8s/base) is mounted at /app/out and
+#    receives /app/out/tableau/extracts and /app/out/exports/close (exporters
+#    must create the --out directory if missing).
+# Both are ReadWriteOnce: fine on kind/single-AZ nodes; on multi-node clusters
+# use an RWX storage class (EFS) or switch to Argo artifacts.
+---
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: mci-daily-pipeline
+  namespace: mci
+  labels:
+    app.kubernetes.io/part-of: manufacturing-cost-intelligence
+spec:
+  entrypoint: daily
+  serviceAccountName: mci-runner
+  activeDeadlineSeconds: 7200
+  podGC:
+    strategy: OnPodSuccess
+  ttlStrategy:
+    secondsAfterSuccess: 86400
+    secondsAfterFailure: 604800
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 10001
+    runAsGroup: 10001
+    fsGroup: 10001          # makes the PVCs writable by uid 10001
+  arguments:
+    parameters:
+      - name: date
+        value: ""           # YYYY-MM-DD; empty => yesterday in America/Chicago
+        description: Business date to process (YYYY-MM-DD). Empty means yesterday (America/Chicago).
+      - name: image-tag
+        value: "0.1.0"
+      - name: image-prefix
+        value: ""
+  volumeClaimTemplates:
+    - metadata:
+        name: work
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 1Gi
+  volumes:
+    - name: exports
+      persistentVolumeClaim:
+        claimName: mci-exports
+
+  templates:
+    # ------------------------------------------------------------------ DAG
+    - name: daily
+      dag:
+        # Keep going after a failure so publish-dq still records dbt test
+        # results; the workflow is still marked Failed.
+        failFast: false
+        tasks:
+          - name: resolve-date
+            template: resolve-date
+          - name: land
+            template: land
+            depends: resolve-date
+            arguments:
+              parameters: [{name: date, value: "{{tasks.resolve-date.outputs.result}}"}]
+          - name: load
+            template: load
+            depends: land
+            arguments:
+              parameters: [{name: date, value: "{{tasks.resolve-date.outputs.result}}"}]
+          - name: dbt-build
+            template: dbt-build
+            depends: load
+          - name: layer-checks
+            template: layer-checks
+            depends: dbt-build
+            arguments:
+              parameters: [{name: date, value: "{{tasks.resolve-date.outputs.result}}"}]
+          - name: publish-dq
+            template: publish-dq
+            # Publish DQ results even when dbt tests failed (run_results.json exists).
+            depends: "dbt-build.Succeeded || dbt-build.Failed"
+          - name: tableau-export
+            template: tableau-export
+            depends: "layer-checks.Succeeded && publish-dq.Succeeded && dbt-build.Succeeded"
+
+    # ------------------------------------------------------- resolve-date
+    - name: resolve-date
+      script:
+        image: "{{workflow.parameters.image-prefix}}mci-loader:{{workflow.parameters.image-tag}}"
+        command: [python]
+        env:
+          - name: REQUESTED_DATE
+            value: "{{workflow.parameters.date}}"
+        source: |
+          import datetime as dt, os, sys
+          raw = os.environ.get("REQUESTED_DATE", "").strip()
+          if raw:
+              dt.date.fromisoformat(raw)  # validate; raises on bad input
+              print(raw)
+              sys.exit(0)
+          try:
+              from zoneinfo import ZoneInfo
+              now = dt.datetime.now(ZoneInfo("America/Chicago"))
+          except Exception:  # no tzdata in image: fall back to CST
+              now = dt.datetime.now(dt.timezone(dt.timedelta(hours=-6)))
+          print((now.date() - dt.timedelta(days=1)).isoformat())
+        resources:
+          requests: {cpu: 50m, memory: 64Mi}
+          limits: {cpu: 200m, memory: 128Mi}
+
+    # --------------------------------------------------------------- land
+    - name: land
+      inputs:
+        parameters: [{name: date}]
+      retryStrategy: &retry
+        limit: "2"
+        retryPolicy: Always
+        backoff: {duration: "30s", factor: "2", maxDuration: "10m"}
+      container:
+        image: "{{workflow.parameters.image-prefix}}mci-loader:{{workflow.parameters.image-tag}}"
+        args: ["ingestion.land", "--date", "{{inputs.parameters.date}}"]
+        envFrom: &envFrom
+          - configMapRef: {name: mci-config}
+          - secretRef: {name: mci-secrets}
+        resources: &small
+          requests: {cpu: 250m, memory: 512Mi}
+          limits: {cpu: "1", memory: 1Gi}
+
+    # --------------------------------------------------------------- load
+    - name: load
+      inputs:
+        parameters: [{name: date}]
+      retryStrategy: *retry
+      container:
+        image: "{{workflow.parameters.image-prefix}}mci-loader:{{workflow.parameters.image-tag}}"
+        args: ["ingestion.load", "--date", "{{inputs.parameters.date}}"]
+        envFrom: *envFrom
+        resources: &medium
+          requests: {cpu: 500m, memory: 1Gi}
+          limits: {cpu: "2", memory: 2Gi}
+
+    # ---------------------------------------------------------- dbt-build
+    - name: dbt-build
+      # Only retry infrastructure errors (pod eviction, image pull, ...); a
+      # failing dbt test will fail again on retry.
+      retryStrategy:
+        limit: "2"
+        retryPolicy: OnError
+        backoff: {duration: "30s", factor: "2", maxDuration: "10m"}
+      container:
+        image: "{{workflow.parameters.image-prefix}}mci-dbt:{{workflow.parameters.image-tag}}"
+        args: ["build", "--project-dir", "/app/dbt", "--profiles-dir", "/app/dbt"]
+        envFrom: *envFrom
+        resources: *medium
+        volumeMounts:
+          - {name: work, mountPath: /app/dbt/target}
+
+    # ------------------------------------------------------- layer-checks
+    - name: layer-checks
+      inputs:
+        parameters: [{name: date}]
+      retryStrategy: *retry
+      container:
+        image: "{{workflow.parameters.image-prefix}}mci-loader:{{workflow.parameters.image-tag}}"
+        args: ["quality.layer_checks", "--date", "{{inputs.parameters.date}}"]
+        envFrom: *envFrom
+        resources: *small
+
+    # --------------------------------------------------------- publish-dq
+    - name: publish-dq
+      retryStrategy: *retry
+      container:
+        image: "{{workflow.parameters.image-prefix}}mci-loader:{{workflow.parameters.image-tag}}"
+        args: ["quality.publish_dq", "--run-results", "dbt/target/run_results.json"]
+        envFrom: *envFrom
+        resources: *small
+        volumeMounts:
+          - {name: work, mountPath: /app/dbt/target, readOnly: true}
+
+    # ----------------------------------------------------- tableau-export
+    - name: tableau-export
+      retryStrategy: *retry
+      container:
+        image: "{{workflow.parameters.image-prefix}}mci-exporter:{{workflow.parameters.image-tag}}"
+        args: ["exporter.tableau_export", "--out", "/app/out/tableau/extracts"]
+        envFrom: *envFrom
+        resources: *medium
+        volumeMounts:
+          - {name: exports, mountPath: /app/out}
+---
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: mci-month-end-close
+  namespace: mci
+  labels:
+    app.kubernetes.io/part-of: manufacturing-cost-intelligence
+spec:
+  entrypoint: close
+  onExit: notify            # runs on success, failure and blocked sign-off
+  serviceAccountName: mci-runner
+  activeDeadlineSeconds: 7200
+  podGC:
+    strategy: OnPodSuccess
+  ttlStrategy:
+    secondsAfterSuccess: 604800
+    secondsAfterFailure: 2592000
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 10001
+    runAsGroup: 10001
+    fsGroup: 10001
+  arguments:
+    parameters:
+      - name: period
+        description: Fiscal period to close (YYYY-MM).
+      - name: image-tag
+        value: "0.1.0"
+      - name: image-prefix
+        value: ""
+  volumes:
+    - name: exports
+      persistentVolumeClaim:
+        claimName: mci-exports
+
+  templates:
+    - name: close
+      steps:
+        - - name: reconcile
+            template: dbt-reconciliation
+        # Exit code 2 = sign-off blocked (unreconciled variance above
+        # MATERIALITY_USD). Any non-zero exit fails this step, which stops
+        # the workflow (close-package never runs) and marks it Failed.
+        - - name: period-close
+            template: period-close
+        - - name: close-package
+            template: close-package
+
+    - name: dbt-reconciliation
+      retryStrategy:
+        limit: "2"
+        retryPolicy: OnError
+        backoff: {duration: "30s", factor: "2", maxDuration: "10m"}
+      container:
+        image: "{{workflow.parameters.image-prefix}}mci-dbt:{{workflow.parameters.image-tag}}"
+        args: ["build", "--project-dir", "/app/dbt", "--profiles-dir", "/app/dbt",
+               "--select", "tag:reconciliation+"]
+        envFrom: &closeEnvFrom
+          - configMapRef: {name: mci-config}
+          - secretRef: {name: mci-secrets}
+        resources:
+          requests: {cpu: 500m, memory: 1Gi}
+          limits: {cpu: "2", memory: 2Gi}
+
+    - name: period-close
+      retryStrategy:
+        limit: "2"
+        retryPolicy: Always
+        backoff: {duration: "30s", factor: "2", maxDuration: "10m"}
+        # Never retry a blocked sign-off: it is a business outcome, not a flake.
+        expression: "lastRetry.exitCode != '2'"
+      container:
+        image: "{{workflow.parameters.image-prefix}}mci-loader:{{workflow.parameters.image-tag}}"
+        args: ["close.period_close", "--period", "{{workflow.parameters.period}}", "--sign-off"]
+        envFrom: *closeEnvFrom
+        resources:
+          requests: {cpu: 250m, memory: 512Mi}
+          limits: {cpu: "1", memory: 1Gi}
+
+    - name: close-package
+      retryStrategy:
+        limit: "2"
+        retryPolicy: Always
+        backoff: {duration: "30s", factor: "2", maxDuration: "10m"}
+      container:
+        image: "{{workflow.parameters.image-prefix}}mci-exporter:{{workflow.parameters.image-tag}}"
+        args: ["exporter.close_package", "--period", "{{workflow.parameters.period}}",
+               "--out", "/app/out/exports/close"]
+        envFrom: *closeEnvFrom
+        resources:
+          requests: {cpu: 250m, memory: 512Mi}
+          limits: {cpu: "1", memory: 2Gi}
+        volumeMounts:
+          - {name: exports, mountPath: /app/out}
+
+    # onExit handler: always runs. Posts to Slack when SLACK_WEBHOOK_URL is set,
+    # otherwise just logs. Never fails the workflow itself.
+    - name: notify
+      script:
+        image: "{{workflow.parameters.image-prefix}}mci-loader:{{workflow.parameters.image-tag}}"
+        command: [python]
+        envFrom: *closeEnvFrom
+        env:
+          - {name: WF_NAME, value: "{{workflow.name}}"}
+          - {name: WF_STATUS, value: "{{workflow.status}}"}
+          - {name: WF_PERIOD, value: "{{workflow.parameters.period}}"}
+          - {name: WF_FAILURES, value: "{{workflow.failures}}"}
+        source: |
+          import json, os, urllib.request
+          status = os.environ["WF_STATUS"]
+          failures = os.environ.get("WF_FAILURES", "")
+          # workflow.failures is a JSON list of failed nodes; the blocked case
+          # is the period-close step exiting with code 2.
+          blocked = "period-close" in failures and "exit code 2" in failures
+          if status == "Succeeded":
+              text = f":white_check_mark: Month-end close {os.environ['WF_PERIOD']} signed off ({os.environ['WF_NAME']})."
+          elif blocked:
+              text = (f":no_entry: Month-end close {os.environ['WF_PERIOD']} BLOCKED at sign-off "
+                      f"(reconciliation variance above materiality) - {os.environ['WF_NAME']}.")
+          else:
+              text = f":x: Month-end close {os.environ['WF_PERIOD']} {status} - {os.environ['WF_NAME']}: {failures[:1500]}"
+          print(json.dumps({"event": "close_notify", "status": status, "message": text}))
+          url = os.environ.get("SLACK_WEBHOOK_URL", "").strip()
+          if url:
+              try:
+                  req = urllib.request.Request(url, data=json.dumps({"text": text}).encode(),
+                                               headers={"Content-Type": "application/json"})
+                  urllib.request.urlopen(req, timeout=10).read()
+              except Exception as exc:  # alerting must never mask the real outcome
+                  print(json.dumps({"event": "close_notify_error", "error": str(exc)}))
+        resources:
+          requests: {cpu: 50m, memory: 64Mi}
+          limits: {cpu: 200m, memory: 128Mi}

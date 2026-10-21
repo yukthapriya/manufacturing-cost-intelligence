@@ -1,0 +1,36 @@
+# Base: everything the pipeline needs inside namespace `mci` on a dev cluster
+# (warehouse Postgres, MinIO, config, secrets, RBAC). Airflow itself is
+# installed separately with the official Helm chart (k8s/airflow/values.yaml).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: mci
+
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: manufacturing-cost-intelligence
+    includeSelectors: false
+
+resources:
+  - namespace.yaml
+  - serviceaccount.yaml
+  - rbac.yaml
+  - configmap.yaml
+  - postgres.yaml
+  - minio.yaml
+  - minio-init-job.yaml
+  - networkpolicy.yaml
+  - limitrange.yaml
+  - exports-pvc.yaml
+
+# Secret built from a gitignored env file. Bootstrap with:
+#   cp k8s/base/secrets.env.example k8s/base/secrets.env
+secretGenerator:
+  - name: mci-secrets
+    envs:
+      - secrets.env
+    type: Opaque
+    options:
+      # Fixed name so Helm-managed Airflow and Argo can reference it with
+      # envFrom; restart consumers after rotating.
+      disableNameSuffixHash: true

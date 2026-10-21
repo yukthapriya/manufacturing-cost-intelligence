@@ -1,0 +1,15 @@
+# Persistent output area for Tableau extracts (tableau/extracts) and close
+# packages (exports/close), shared by Argo steps / KubernetesPodOperator pods.
+# RWO is sufficient on kind; use an RWX class (e.g. EFS) on multi-node EKS.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mci-exports
+  namespace: mci
+  labels:
+    app.kubernetes.io/name: mci-exports
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 5Gi

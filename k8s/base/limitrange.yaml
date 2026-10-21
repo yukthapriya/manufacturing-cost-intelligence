@@ -1,0 +1,16 @@
+# Default requests/limits for pipeline pods that do not set their own (e.g.
+# KubernetesPodOperator tasks). Overlays resize these per environment.
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: mci-defaults
+  namespace: mci
+spec:
+  limits:
+    - type: Container
+      defaultRequest:
+        cpu: 250m
+        memory: 512Mi
+      default:
+        cpu: "1"
+        memory: 2Gi

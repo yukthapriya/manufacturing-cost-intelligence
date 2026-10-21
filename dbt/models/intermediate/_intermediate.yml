@@ -1,0 +1,86 @@
+version: 2
+models:
+- name: int_bom_exploded
+  description: Finished good to purchased material, flattened through subassemblies (recursive CTE).
+  columns:
+  - name: qty_per
+    data_tests:
+    - expression_is_true:
+        arguments:
+          expression: qty_per > 0
+  data_tests:
+  - unique_combination:
+      arguments:
+        columns:
+        - product_id
+        - material_id
+- name: int_material_issues
+  description: Issues valued at standard (incremental, merge on issue_id, watermark on _loaded_at).
+  columns:
+  - name: issue_id
+    data_tests:
+    - unique
+    - not_null
+  - name: std_price
+    description: Every issued material must have a standard in force on the issue date.
+    data_tests:
+    - not_null
+- name: int_labor_entries
+  description: Labor at actual rate and overhead applied, with the period-lock routing for late postings.
+  columns:
+  - name: labor_entry_id
+    data_tests:
+    - unique
+    - not_null
+  - name: std_labor_rate
+    data_tests:
+    - not_null
+  - name: period_id
+    data_tests:
+    - relationships:
+        arguments:
+          to: ref('stg_fiscal_calendar')
+          field: period_id
+  data_tests:
+  - no_rows_where:
+      name: dq_warn_late_labor_routed_to_open_period
+      config:
+        severity: warn
+      arguments:
+        condition: is_late_posting
+- name: int_actual_material_price
+  description: Monthly weighted-average invoice price per plant and material, carried forward, standard as last
+    resort.
+  data_tests:
+  - unique_combination:
+      arguments:
+        columns:
+        - plant_id
+        - material_id
+        - period_id
+- name: int_order_material_actuals
+  description: Actual quantity, scrap and price per order and material (incremental by changed orders).
+  data_tests:
+  - unique_combination:
+      arguments:
+        columns:
+        - order_id
+        - material_id
+- name: int_material_variance
+  description: 'Price / usage / scrap decomposition per completed order and material. price = (AP-SP)*AQ, usage
+    = (AQ-AS-SQgood)*SP, scrap = (AS-SQallow)*SP.
+
+    '
+- name: int_labor_variance
+  description: Labor rate, labor efficiency and overhead efficiency variances per completed order.
+- name: int_wip_activity
+  description: Movements into and out of WIP per order, accounting period and source.
+- name: int_wip_settlement
+  description: Period-end settlement of completed orders' residual WIP to manufacturing variance (5200).
+- name: int_subledger_postings
+  description: The GL postings the cost subledger implies, at ERP posting grain (day x plant x source x account).
+  data_tests:
+  - expression_is_true:
+      name: subledger_postings_have_period
+      arguments:
+        expression: period_id is not null

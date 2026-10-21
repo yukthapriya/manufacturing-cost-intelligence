@@ -1,0 +1,80 @@
+{
+  "params": {
+    "start": "2025-01-01",
+    "months": 12,
+    "scale": 1.0,
+    "seed": 42,
+    "end": "2025-12-31"
+  },
+  "gl_breaks": [
+    {
+      "type": "missing_posting",
+      "period_id": "2025-03",
+      "plant_id": "FRE1",
+      "source_type": "ISSUE",
+      "je_date": "2025-03-15",
+      "amount_1400": 2807484.04
+    },
+    {
+      "type": "duplicate_posting",
+      "period_id": "2025-05",
+      "plant_id": "AUS1",
+      "source_type": "RECEIPT",
+      "je_date": "2025-05-11",
+      "amount_1300": 559856.42
+    },
+    {
+      "type": "misposted_plant",
+      "period_id": "2025-08",
+      "from_plant": "AUS1",
+      "to_plant": "RNO1",
+      "source_type": "LABOR",
+      "je_date": "2025-08-13",
+      "amount_1400": 11728.47
+    },
+    {
+      "type": "timing",
+      "period_id": "2025-10",
+      "reverses_in": "2025-11",
+      "plant_id": "RNO1",
+      "source_type": "SHIPMENT",
+      "je_date": "2025-10-31",
+      "amount_1500": -1696273.24
+    }
+  ],
+  "data_quality": {
+    "duplicate_invoice_lines": 176,
+    "invoice_lines_missing_po": 219,
+    "issues_in_grams": 1165,
+    "issue_reject_rows": 95,
+    "labor_reject_rows": 16,
+    "snapshot_offsets": 22,
+    "negative_snapshots": 5,
+    "late_labor_entries": 1003
+  },
+  "row_counts": {
+    "plants": 3,
+    "production_lines": 6,
+    "suppliers": 25,
+    "materials": 300,
+    "products": 40,
+    "subassemblies": 10,
+    "bom": 684,
+    "standard_costs": 784,
+    "uom_conversions": 5,
+    "gl_accounts": 13,
+    "fiscal_calendar": 14,
+    "production_orders": 18213,
+    "material_issues": 190317,
+    "labor_entries": 33544,
+    "scrap_records": 37903,
+    "shipments": 9014,
+    "opening_inventory": 497,
+    "purchase_order_lines": 11869,
+    "goods_receipts": 11807,
+    "invoice_lines": 12045,
+    "inventory_snapshots": 5964,
+    "cycle_counts": 917,
+    "gl_journal_entries": 17886
+  }
+}

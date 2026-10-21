@@ -1,0 +1,169 @@
+# Local stack for the Manufacturing Cost Intelligence Platform.
+#
+#   cp .env.example .env
+#   docker compose up -d --build
+#   open http://localhost:8080   (admin / admin from .env)
+#   MinIO console: http://localhost:9001
+#
+# Airflow runs with LocalExecutor and EXECUTION_MODE=local, i.e. DAG tasks call
+# the project CLIs in-process inside the mci-airflow image (dbt lives in
+# /opt/dbt-venv). Warehouse and Airflow metadata share one Postgres server but
+# use separate databases/roles (see docker/postgres-init/01-airflow-db.sql).
+
+name: mci
+
+x-airflow-common: &airflow-common
+  build:
+    context: .
+    dockerfile: docker/airflow.Dockerfile
+  image: mci-airflow:${MCI_IMAGE_TAG:-0.1.0}
+  env_file: .env
+  environment: &airflow-env
+    # Compose always runs the in-process (local) DAG variant against MinIO.
+    EXECUTION_MODE: local
+    SOURCE_URI: s3://mci-source
+    RAW_URI: s3://mci-raw
+    S3_ENDPOINT_URL: http://minio:9000
+    WAREHOUSE_HOST: postgres
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__CORE__LOAD_EXAMPLES: "False"
+    AIRFLOW__CORE__DAGS_FOLDER: /opt/mci/airflow/dags
+    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "True"
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${AIRFLOW_DB_USER:-airflow}:${AIRFLOW_DB_PASSWORD:-airflow}@postgres:5432/${AIRFLOW_DB_NAME:-airflow}
+    AIRFLOW__WEBSERVER__EXPOSE_CONFIG: "False"
+    AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: "True"
+    AIRFLOW__CORE__DEFAULT_TIMEZONE: America/Chicago
+  volumes:
+    # Bind mounts overlay the copies baked into the image so edits are live.
+    - ./airflow/dags:/opt/mci/airflow/dags
+    - ./dbt:/opt/mci/dbt
+    - ./data:/opt/mci/data
+    - ./tableau:/opt/mci/tableau
+    - ./exports:/opt/mci/exports
+  # Run as the image's airflow user (uid 50000) with gid 0, as the official
+  # compose file does; set AIRFLOW_UID to your host uid on Linux so files
+  # written to the bind mounts are owned by you.
+  user: "${AIRFLOW_UID:-50000}:0"
+  depends_on: &airflow-depends
+    postgres:
+      condition: service_healthy
+    minio-init:
+      condition: service_completed_successfully
+
+services:
+  postgres:
+    image: postgres:15.8
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${WAREHOUSE_DB:-mfg_cost}
+      POSTGRES_USER: ${WAREHOUSE_USER:-mci}
+      POSTGRES_PASSWORD: ${WAREHOUSE_PASSWORD:?set WAREHOUSE_PASSWORD in .env}
+    ports:
+      - "${WAREHOUSE_HOST_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # Executed only on first initialisation of an empty data directory.
+      - ./docker/postgres-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+  minio:
+    image: minio/minio:RELEASE.2024-10-13T13-34-11Z
+    restart: unless-stopped
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      # MinIO root credentials double as the pipeline's S3 credentials in dev.
+      MINIO_ROOT_USER: ${AWS_ACCESS_KEY_ID:?set AWS_ACCESS_KEY_ID in .env}
+      MINIO_ROOT_PASSWORD: ${AWS_SECRET_ACCESS_KEY:?set AWS_SECRET_ACCESS_KEY in .env}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - miniodata:/data
+    healthcheck:
+      # Recent MinIO images do not ship curl; the bundled mc has a readiness probe.
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 5s
+
+  minio-init:
+    image: minio/mc:RELEASE.2024-10-08T09-37-26Z
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      MINIO_ROOT_USER: ${AWS_ACCESS_KEY_ID}
+      MINIO_ROOT_PASSWORD: ${AWS_SECRET_ACCESS_KEY}
+    # Idempotent: --ignore-existing makes re-runs a no-op.
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        set -e
+        mc alias set local http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD"
+        mc mb --ignore-existing local/mci-source
+        mc mb --ignore-existing local/mci-raw
+        mc version enable local/mci-raw
+        echo "buckets ready"
+    restart: "no"
+
+  airflow-init:
+    <<: *airflow-common
+    depends_on:
+      postgres:
+        condition: service_healthy
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - |
+        set -euo pipefail
+        airflow db migrate
+        airflow users create \
+          --username "$${_AIRFLOW_WWW_USER_USERNAME:-admin}" \
+          --password "$${_AIRFLOW_WWW_USER_PASSWORD:-admin}" \
+          --firstname Admin --lastname User --role Admin \
+          --email admin@example.com || true   # already exists on re-run
+    restart: "no"
+
+  airflow-webserver:
+    <<: *airflow-common
+    command: webserver
+    ports:
+      - "8080:8080"
+    depends_on:
+      <<: *airflow-depends
+      airflow-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+    restart: unless-stopped
+
+  airflow-scheduler:
+    <<: *airflow-common
+    command: scheduler
+    depends_on:
+      <<: *airflow-depends
+      airflow-init:
+        condition: service_completed_successfully
+    healthcheck:
+      # Requires AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK=True (set above).
+      test: ["CMD", "curl", "-fsS", "http://localhost:8974/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  miniodata:

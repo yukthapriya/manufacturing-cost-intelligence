@@ -1,0 +1,136 @@
+version: 2
+models:
+- name: fct_cost_variance
+  description: 'Grain: completed order x cost element (x material for material elements). Positive = unfavorable.
+    source_txn_ids lists the issue/scrap/labor entry ids behind the row.
+
+    '
+  columns:
+  - name: variance_id
+    data_tests:
+    - unique
+    - not_null
+  - name: order_id
+    data_tests:
+    - relationships:
+        arguments:
+          to: ref('fct_production_cost')
+          field: order_id
+  - name: cost_element
+    data_tests:
+    - accepted_values:
+        arguments:
+          values:
+          - material_price
+          - material_usage
+          - scrap
+          - labor_rate
+          - labor_efficiency
+          - overhead_efficiency
+  - name: variance_amount
+    data_tests:
+    - not_null
+- name: fct_production_cost
+  description: Grain production order. Actual vs. standard cost; open orders carry cost-to-date only.
+  columns:
+  - name: order_id
+    data_tests:
+    - unique
+    - not_null
+  - name: actual_material_cost
+    data_tests:
+    - non_negative
+  - name: actual_labor_cost
+    data_tests:
+    - non_negative
+  - name: overhead_applied
+    data_tests:
+    - non_negative
+  data_tests:
+  - expression_is_true:
+      name: completed_orders_have_standard_cost
+      arguments:
+        expression: total_std_cost is not null and total_variance is not null
+        where: is_completed
+- name: fct_unit_cost
+  description: Grain product x line x completion month. Weighted actual vs. standard unit cost.
+  columns:
+  - name: unit_cost_id
+    data_tests:
+    - unique
+    - not_null
+- name: fct_cost_transactions
+  description: Transaction-level drill-through (issues, scrap, labor) for every order cost.
+  data_tests:
+  - unique_combination:
+      arguments:
+        columns:
+        - txn_type
+        - txn_id
+- name: fct_scrap
+  description: Grain line x month x reason. Scrap value at standard and scrap rate vs. material issued.
+  columns:
+  - name: scrap_summary_id
+    data_tests:
+    - unique
+    - not_null
+- name: fct_inventory_discrepancy
+  description: Perpetual vs. ERP system vs. physical count quantity per plant, material and month end.
+  columns:
+  - name: discrepancy_id
+    data_tests:
+    - unique
+    - not_null
+  data_tests:
+  - no_rows_where:
+      name: dq_warn_erp_qty_differs_from_perpetual
+      config:
+        severity: warn
+      arguments:
+        condition: flag_system_break
+- name: fct_purchase_price
+  description: Invoice line price vs. PO and standard (duplicates excluded).
+- name: dim_product
+  columns:
+  - name: product_id
+    data_tests:
+    - unique
+    - not_null
+  data_tests:
+  - expression_is_true:
+      name: bom_rollup_matches_published_standard
+      arguments:
+        expression: abs(std_unit_cost_rollup - std_unit_cost) <= 0.01
+- name: dim_material
+  columns:
+  - name: material_id
+    data_tests:
+    - unique
+    - not_null
+  - name: std_price
+    data_tests:
+    - not_null
+- name: dim_line
+  columns:
+  - name: line_id
+    data_tests:
+    - unique
+    - not_null
+- name: dim_supplier
+  columns:
+  - name: supplier_id
+    data_tests:
+    - unique
+    - not_null
+- name: dim_plant
+  columns:
+  - name: plant_id
+    data_tests:
+    - unique
+    - not_null
+- name: dim_date
+  columns:
+  - name: date_day
+    data_tests:
+    - unique
+    - not_null

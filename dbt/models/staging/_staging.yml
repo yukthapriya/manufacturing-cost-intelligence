@@ -1,0 +1,202 @@
+version: 2
+models:
+- name: stg_production_orders
+  description: Current state of each production order (CDC events collapsed; COMPLETED wins).
+  columns:
+  - name: order_id
+    data_tests:
+    - unique
+    - not_null
+  - name: product_id
+    data_tests:
+    - relationships:
+        arguments:
+          to: ref('stg_products')
+          field: product_id
+  - name: line_id
+    data_tests:
+    - relationships:
+        arguments:
+          to: ref('stg_production_lines')
+          field: line_id
+  - name: status
+    data_tests:
+    - accepted_values:
+        arguments:
+          values:
+          - RELEASED
+          - COMPLETED
+  data_tests:
+  - expression_is_true:
+      name: completed_qty_within_110pct_of_plan
+      arguments:
+        expression: completed_qty <= planned_qty * 1.1
+        where: is_completed
+  - expression_is_true:
+      name: completed_orders_have_end_and_qty
+      arguments:
+        expression: actual_end is not null and completed_qty is not null
+        where: is_completed
+- name: stg_material_issues
+  description: Goods issues de-duplicated across reloads, quantities normalised to the material's base UOM.
+  columns:
+  - name: issue_id
+    data_tests:
+    - unique
+    - not_null
+  - name: order_id
+    data_tests:
+    - relationships:
+        arguments:
+          to: ref('stg_production_orders')
+          field: order_id
+  - name: material_id
+    data_tests:
+    - relationships:
+        arguments:
+          to: ref('stg_materials')
+          field: material_id
+  - name: uom
+    description: Base UOM after conversion. Null means the source UOM has no conversion rule.
+    data_tests:
+    - not_null
+  - name: issue_qty
+    data_tests:
+    - not_null
+    - non_negative
+  data_tests:
+  - no_rows_where:
+      name: issue_uom_matches_material_base_uom
+      arguments:
+        condition: uom_mismatch
+  - no_rows_where:
+      name: dq_warn_issues_booked_in_grams
+      config:
+        severity: warn
+      arguments:
+        condition: uom_converted
+- name: stg_labor_entries
+  columns:
+  - name: labor_entry_id
+    data_tests:
+    - unique
+    - not_null
+  - name: order_id
+    data_tests:
+    - relationships:
+        arguments:
+          to: ref('stg_production_orders')
+          field: order_id
+  - name: hours
+    data_tests:
+    - not_null
+    - non_negative
+- name: stg_scrap_records
+  columns:
+  - name: scrap_id
+    data_tests:
+    - unique
+    - not_null
+  - name: order_id
+    data_tests:
+    - relationships:
+        arguments:
+          to: ref('stg_production_orders')
+          field: order_id
+  - name: reason_code
+    data_tests:
+    - accepted_values:
+        arguments:
+          values:
+          - DIM_OUT_OF_SPEC
+          - DAMAGED_HANDLING
+          - MACHINE_FAULT
+          - OPERATOR_ERROR
+          - MATERIAL_DEFECT
+- name: stg_invoice_lines
+  description: Supplier invoice lines; resubmitted duplicates flagged, not removed.
+  columns:
+  - name: supplier_id
+    data_tests:
+    - relationships:
+        arguments:
+          to: ref('stg_suppliers')
+          field: supplier_id
+  data_tests:
+  - unique_combination:
+      arguments:
+        columns:
+        - invoice_id
+        - invoice_line
+  - no_rows_where:
+      name: dq_warn_duplicate_supplier_invoices
+      config:
+        severity: warn
+      arguments:
+        condition: is_duplicate
+  - no_rows_where:
+      name: dq_warn_invoices_without_po
+      config:
+        severity: warn
+      arguments:
+        condition: is_missing_po and not is_duplicate
+- name: stg_purchase_order_lines
+  data_tests:
+  - unique_combination:
+      arguments:
+        columns:
+        - po_id
+        - po_line
+- name: stg_goods_receipts
+  columns:
+  - name: gr_id
+    data_tests:
+    - unique
+    - not_null
+- name: stg_gl_journal_entries
+  columns:
+  - name: account
+    data_tests:
+    - relationships:
+        arguments:
+          to: ref('stg_gl_accounts')
+          field: account
+  - name: plant_id
+    data_tests:
+    - relationships:
+        arguments:
+          to: ref('stg_plants')
+          field: plant_id
+  - name: period_id
+    data_tests:
+    - relationships:
+        arguments:
+          to: ref('stg_fiscal_calendar')
+          field: period_id
+  data_tests:
+  - unique_combination:
+      arguments:
+        columns:
+        - je_id
+        - je_line
+- name: stg_inventory_snapshots
+  data_tests:
+  - no_rows_where:
+      name: dq_warn_negative_system_inventory
+      config:
+        severity: warn
+      arguments:
+        condition: system_qty < 0
+- name: stg_standard_costs
+  data_tests:
+  - unique_combination:
+      arguments:
+        columns:
+        - item_type
+        - item_id
+        - cost_component
+        - effective_from
+  - expression_is_true:
+      name: standard_effective_range_valid
+      arguments:
+        expression: effective_to >= effective_from

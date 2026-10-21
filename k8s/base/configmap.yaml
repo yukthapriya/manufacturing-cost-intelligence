@@ -1,0 +1,21 @@
+# Non-secret runtime configuration (docs/interfaces.md). Mounted with envFrom
+# by Airflow (Helm extraEnvFrom), KubernetesPodOperator pods and Argo steps.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mci-config
+  namespace: mci
+data:
+  WAREHOUSE_HOST: postgres.mci.svc.cluster.local
+  WAREHOUSE_PORT: "5432"
+  WAREHOUSE_DB: mfg_cost
+  WAREHOUSE_USER: mci
+  SOURCE_URI: s3://mci-source
+  RAW_URI: s3://mci-raw
+  S3_ENDPOINT_URL: http://minio.mci.svc.cluster.local:9000
+  AWS_DEFAULT_REGION: us-east-1
+  LOG_LEVEL: INFO
+  MATERIALITY_USD: "1000"
+  EXECUTION_MODE: k8s
+  MCI_IMAGE_TAG: 0.1.0
+  K8S_NAMESPACE: mci

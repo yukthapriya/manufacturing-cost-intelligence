@@ -1,0 +1,102 @@
+version: 2
+
+# Hand-calculated cases for the cost math. Run with: dbt test --select test_type:unit
+# (numbers are quoted where Postgres numeric scale matters for the comparison, e.g. '50.50')
+unit_tests:
+  - name: material_variance_decomposition
+    description: >
+      M1: AQ=105 (4 scrapped) at AP 2.10 vs SP 2.00; 50 good units x 2/unit = SQg 100,
+      2% allowance = SQa 2. price = 0.10*105 = 10.50, usage = (105-4-100)*2 = 2.00,
+      scrap = (4-2)*2 = 4.00; total 16.50 = 220.50 actual - 204.00 standard.
+      M2: in BOM but never issued -> usage -50.00, scrap -0.50.
+      M3: issued but not in BOM -> price 1.50, usage 15.00.
+    model: int_material_variance
+    given:
+      - input: ref('int_order_material_actuals')
+        rows:
+          - {order_id: 1, material_id: M1, actual_qty: 105, actual_scrap_qty: 4, std_price: 2.00, actual_price: 2.10, price_source: invoice_month, issue_ids: '11,12', scrap_ids: '21', issue_count: 2}
+          - {order_id: 1, material_id: M3, actual_qty: 3, actual_scrap_qty: 0, std_price: 5.00, actual_price: 5.50, price_source: invoice_month, issue_ids: '13', scrap_ids: null, issue_count: 1}
+      - input: ref('stg_production_orders')
+        rows:
+          - {order_id: 1, is_completed: true}
+      - input: ref('int_order_material_standards')
+        rows:
+          - {order_id: 1, material_id: M1, std_qty_good: 100, allowed_scrap_qty: 2, std_qty_incl_scrap: 102, std_price: 2.00}
+          - {order_id: 1, material_id: M2, std_qty_good: 50, allowed_scrap_qty: 0.5, std_qty_incl_scrap: 50.5, std_price: 1.00}
+    expect:
+      rows:
+        - {order_id: 1, material_id: M1, actual_cost: 220.50, std_cost: 204.00, price_variance: 10.50, usage_variance: 2.00, scrap_variance: 4.00, not_in_bom: false}
+        - {order_id: 1, material_id: M2, actual_cost: '0.0', std_cost: '50.50', price_variance: '0.0', usage_variance: '-50.0', scrap_variance: '-0.50', not_in_bom: false}
+        - {order_id: 1, material_id: M3, actual_cost: 16.50, std_cost: '0.0', price_variance: 1.50, usage_variance: 15.00, scrap_variance: '0.0', not_in_bom: true}
+
+  - name: labor_and_overhead_variance
+    description: >
+      AH 10 at actual cost 420 (AR 42) vs SR 40; SH 9.5; overhead 60/h applied on actual hours (600).
+      rate = 420 - 40*10 = 20; efficiency = (10-9.5)*40 = 20; overhead efficiency = 600 - 60*9.5 = 30.
+    model: int_labor_variance
+    given:
+      - input: ref('int_order_labor')
+        rows:
+          - {order_id: 7, is_completed: true, actual_hours: 10, actual_labor_cost: 420, overhead_applied: 600, actual_rate: 42, std_hours: 9.5, std_labor_rate: 40, overhead_rate: 60}
+          - {order_id: 8, is_completed: false, actual_hours: 5, actual_labor_cost: 200, overhead_applied: 300, actual_rate: 40, std_hours: null, std_labor_rate: 40, overhead_rate: 60}
+    expect:
+      rows:
+        - {order_id: 7, labor_rate_variance: 20, labor_efficiency_variance: '20.0', overhead_efficiency_variance: '30.0', std_labor_cost: '380.0', std_overhead_cost: '570.0'}
+
+  - name: wip_settlement_with_late_labor
+    description: >
+      Order 1 completes in Feb: Jan +100, Feb +50 labor -140 completion -> settle the
+      whole 10.00 in Feb; 5.00 of labor posted late into Mar is settled in Mar.
+      Order 2 is still open -> never settled. Order 3 completes in Jan -> settle 2.00.
+    model: int_wip_settlement
+    given:
+      - input: ref('int_wip_activity')
+        rows:
+          - {order_id: 1, plant_id: P1, period_id: '2025-01', source_type: ISSUE, amount: 100}
+          - {order_id: 1, plant_id: P1, period_id: '2025-02', source_type: LABOR, amount: 50}
+          - {order_id: 1, plant_id: P1, period_id: '2025-02', source_type: COMPLETION, amount: -140}
+          - {order_id: 1, plant_id: P1, period_id: '2025-03', source_type: LABOR, amount: 5}
+          - {order_id: 2, plant_id: P1, period_id: '2025-01', source_type: ISSUE, amount: 30}
+          - {order_id: 3, plant_id: P1, period_id: '2025-01', source_type: ISSUE, amount: 20}
+          - {order_id: 3, plant_id: P1, period_id: '2025-01', source_type: COMPLETION, amount: -18}
+      - input: ref('stg_production_orders')
+        rows:
+          - {order_id: 1, plant_id: P1, is_completed: true, completion_date: '2025-02-10'}
+          - {order_id: 2, plant_id: P1, is_completed: false, completion_date: null}
+          - {order_id: 3, plant_id: P1, is_completed: true, completion_date: '2025-01-20'}
+    expect:
+      rows:
+        - {order_id: 1, period_id: '2025-02', settle_amount: 10}
+        - {order_id: 1, period_id: '2025-03', settle_amount: 5}
+        - {order_id: 3, period_id: '2025-01', settle_amount: 2}
+
+  - name: gl_break_root_causes
+    description: One break of each kind must get the right root-cause tag.
+    model: recon_gl_daily
+    given:
+      - input: ref('int_subledger_postings')
+        rows:
+          # missing: subledger posted, GL has nothing
+          - {posting_date: '2025-03-05', period_id: '2025-03', plant_id: A, source_type: ISSUE, account: '1400', amount: 100}
+          # duplicate: GL posted twice
+          - {posting_date: '2025-03-06', period_id: '2025-03', plant_id: A, source_type: RECEIPT, account: '1300', amount: 70}
+          # misposted: belongs to A, GL booked it to B
+          - {posting_date: '2025-03-07', period_id: '2025-03', plant_id: A, source_type: LABOR, account: '1400', amount: 40}
+          # timing: subledger on Mar 31, GL on Apr 1
+          - {posting_date: '2025-03-31', period_id: '2025-03', plant_id: C, source_type: SHIPMENT, account: '1500', amount: -55}
+          # matched: no break row expected
+          - {posting_date: '2025-03-08', period_id: '2025-03', plant_id: A, source_type: SCRAP, account: '1400', amount: -9}
+      - input: ref('stg_gl_journal_entries')
+        rows:
+          - {je_date: '2025-03-06', period_id: '2025-03', plant_id: A, source_type: RECEIPT, account: '1300', net_amount: 140}
+          - {je_date: '2025-03-07', period_id: '2025-03', plant_id: B, source_type: LABOR, account: '1400', net_amount: 40}
+          - {je_date: '2025-04-01', period_id: '2025-04', plant_id: C, source_type: SHIPMENT, account: '1500', net_amount: -55}
+          - {je_date: '2025-03-08', period_id: '2025-03', plant_id: A, source_type: SCRAP, account: '1400', net_amount: -9}
+    expect:
+      rows:
+        - {je_date: '2025-03-05', plant_id: A, source_type: ISSUE, diff: '-100.00', root_cause: missing_gl_posting}
+        - {je_date: '2025-03-06', plant_id: A, source_type: RECEIPT, diff: '70.00', root_cause: duplicate_gl_posting}
+        - {je_date: '2025-03-07', plant_id: A, source_type: LABOR, diff: '-40.00', root_cause: misposted_plant}
+        - {je_date: '2025-03-07', plant_id: B, source_type: LABOR, diff: '40.00', root_cause: misposted_plant}
+        - {je_date: '2025-03-31', plant_id: C, source_type: SHIPMENT, diff: '55.00', root_cause: timing_cutoff}
+        - {je_date: '2025-04-01', plant_id: C, source_type: SHIPMENT, diff: '-55.00', root_cause: timing_cutoff}

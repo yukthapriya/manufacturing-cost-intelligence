@@ -1,0 +1,145 @@
+# Values for the official Apache Airflow Helm chart, version 1.15.0.
+#
+#   helm repo add apache-airflow https://airflow.apache.org
+#   kubectl apply -k k8s/overlays/dev            # namespace, mci-runner, mci-config, mci-secrets
+#   helm upgrade --install airflow apache-airflow/airflow --version 1.15.0 \
+#     --namespace mci -f k8s/airflow/values.yaml
+#   open http://localhost:8080  (kind maps NodePort 30080 -> host 8080)
+#
+# Executor choice: LocalExecutor.
+#   In k8s mode every heavy task is already a KubernetesPodOperator pod running
+#   an mci-* image, so Airflow workers only *supervise* pods. LocalExecutor runs
+#   that supervision inside the scheduler pod: one fewer moving part than
+#   KubernetesExecutor (no per-task worker pods, no pod_template to maintain)
+#   and it fits comfortably on a 2-node kind cluster. Switching to
+#   KubernetesExecutor later only needs `executor:` changed plus
+#   workers.serviceAccount (already set below).
+
+airflowVersion: "2.10.5"
+defaultAirflowTag: "2.10.5"
+
+executor: LocalExecutor
+
+images:
+  airflow:
+    repository: mci-airflow       # prefix with your registry for EKS, e.g. <acct>.dkr.ecr.<region>.amazonaws.com/mci-airflow
+    tag: "0.1.0"
+    pullPolicy: IfNotPresent      # kind: images are side-loaded with `kind load docker-image`
+
+# Image runs as the airflow user (uid 50000, gid 0) like the upstream image.
+uid: 50000
+gid: 0
+
+# DAGs and project code are baked into mci-airflow at /opt/mci, so no gitSync
+# and no DAG PVC.
+dags:
+  persistence:
+    enabled: false
+  gitSync:
+    enabled: false
+
+config:
+  core:
+    dags_folder: /opt/mci/airflow/dags
+    load_examples: "False"
+    default_timezone: America/Chicago
+  webserver:
+    expose_config: "False"
+  kubernetes_executor:
+    namespace: mci
+
+env:
+  - name: EXECUTION_MODE
+    value: "k8s"
+  - name: MCI_IMAGE_TAG
+    value: "0.1.0"
+  - name: K8S_NAMESPACE
+    value: "mci"
+  - name: PYTHONPATH
+    value: "/opt/mci"
+
+# Pipeline config + secrets (created by k8s/base). Visible to scheduler,
+# webserver, triggerer and migration job. Note mci-config also sets
+# EXECUTION_MODE/MCI_IMAGE_TAG/K8S_NAMESPACE; `env:` above wins on conflict.
+extraEnvFrom: |
+  - configMapRef:
+      name: mci-config
+  - secretRef:
+      name: mci-secrets
+
+# KubernetesPodOperator calls the API as the pod's service account. With
+# LocalExecutor tasks run inside the scheduler, so the scheduler (and workers,
+# should the executor change) use the pre-created mci-runner SA, whose Role
+# (k8s/base/rbac.yaml) allows creating pods in namespace mci.
+scheduler:
+  serviceAccount:
+    create: false
+    name: mci-runner
+  resources:
+    requests: {cpu: 250m, memory: 1Gi}
+    limits: {cpu: "1", memory: 2Gi}
+
+workers:
+  serviceAccount:
+    create: false
+    name: mci-runner
+
+triggerer:
+  serviceAccount:
+    create: false
+    name: mci-runner
+  resources:
+    requests: {cpu: 100m, memory: 512Mi}
+    limits: {cpu: 500m, memory: 1Gi}
+
+# The chart's own pod-launcher Role is bound to the chart-created SAs; we rely
+# on mci-runner's Role instead.
+allowPodLaunching: false
+
+webserver:
+  service:
+    type: NodePort
+    ports:
+      - name: airflow-ui
+        port: 8080
+        targetPort: airflow-ui
+        nodePort: 30080
+  defaultUser:
+    enabled: true
+    role: Admin
+    username: admin
+    password: admin               # dev only; override with --set for anything shared
+    email: admin@example.com
+    firstName: Admin
+    lastName: User
+  resources:
+    requests: {cpu: 250m, memory: 1Gi}
+    limits: {cpu: "1", memory: 2Gi}
+
+# Dev only: fixed key so webserver pods don't restart on every upgrade.
+# In prod set webserverSecretKeySecretName to a pre-created Secret instead.
+webserverSecretKey: dev-only-change-me
+
+# Metadata DB: the chart's bundled PostgreSQL (dev/kind). For prod, set
+# postgresql.enabled=false and data.metadataSecretName to a Secret holding the
+# RDS connection URI.
+postgresql:
+  enabled: true
+  auth:
+    enablePostgresUser: true
+    postgresPassword: postgres
+    username: ""
+    password: ""
+
+# Not used with LocalExecutor.
+redis:
+  enabled: false
+flower:
+  enabled: false
+statsd:
+  enabled: false
+
+# Task logs live on the scheduler's volume with LocalExecutor.
+logs:
+  persistence:
+    enabled: false

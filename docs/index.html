@@ -1,0 +1,458 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+</head>
+<body>
+<title>Manufacturing Cost Review</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap">
+<style>
+/* Layout: a single reading column like a cost-review memo; each finding = headline, plain-English read, chart, data table. */
+:root {
+  --bg: #f4f6f8;
+  --paper: #ffffff;
+  --ink: #14181d;
+  --ink-2: #4c5560;
+  --ink-3: #7a838e;
+  --rule: #dfe3e8;
+  --grid: #eceff2;
+  --accent: #2a78d6;
+  --context: #c3c9d0;
+  --over: #c43c3c;
+  --under: #2a78d6;
+  --mid: #eef0f2;
+  --good: #0c8a0c;
+  --bad: #d03b3b;
+  --wait: #9a6a00;
+  --good-bg: #e7f5e7;
+  --bad-bg: #fbeaea;
+  --wait-bg: #fbf2dd;
+  --display: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
+  --body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111418; --paper: #181c21; --ink: #eef1f4; --ink-2: #b4bcc6; --ink-3: #8a939e;
+    --rule: #2b3139; --grid: #232830; --accent: #3987e5; --context: #4a525c;
+    --over: #e66767; --under: #3987e5; --mid: #262b32;
+    --good: #2fbf2f; --bad: #ef6b6b; --wait: #e0a72a; --good-bg: #13301a; --bad-bg: #3a1a1a; --wait-bg: #33290f;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111418; --paper: #181c21; --ink: #eef1f4; --ink-2: #b4bcc6; --ink-3: #8a939e;
+  --rule: #2b3139; --grid: #232830; --accent: #3987e5; --context: #4a525c;
+  --over: #e66767; --under: #3987e5; --mid: #262b32;
+  --good: #2fbf2f; --bad: #ef6b6b; --wait: #e0a72a; --good-bg: #13301a; --bad-bg: #3a1a1a; --wait-bg: #33290f;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 16px; line-height: 1.55; }
+.wrap { max-width: 860px; margin: 0 auto; padding-block: 40px 64px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+h1, h2, h3 { font-family: var(--display); font-weight: 600; text-wrap: balance; margin: 0; letter-spacing: -0.01em; }
+h1 { font-size: clamp(30px, 6vw, 44px); line-height: 1.08; }
+h2 { font-size: clamp(22px, 4vw, 28px); line-height: 1.2; }
+h3 { font-size: 18px; }
+p { margin: 0; max-width: 66ch; }
+.eyebrow { font-family: var(--mono); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); }
+.num, .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+header { display: grid; gap: 14px; padding-bottom: 28px; border-bottom: 1px solid var(--rule); }
+header .lede { font-size: 18px; color: var(--ink-2); }
+.note { font-size: 13px; color: var(--ink-3); }
+
+.kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; background: var(--rule);
+  border: 1px solid var(--rule); border-radius: 6px; overflow: hidden; margin-top: 28px; }
+.kpi { background: var(--paper); padding: 16px 18px; display: grid; gap: 4px; }
+.kpi .v { font-family: var(--mono); font-size: 24px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.kpi .l { font-size: 13px; color: var(--ink-2); }
+.kpi.hl .v { color: var(--over); }
+@media (max-width: 640px) { .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+.summary { margin-top: 32px; display: grid; gap: 14px; }
+.summary ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 12px; }
+.summary li { display: grid; grid-template-columns: 22px 1fr; gap: 10px; align-items: baseline; }
+.summary li .mk { font-family: var(--mono); font-size: 13px; color: var(--ink-3); }
+.summary li b { font-weight: 600; }
+
+section.finding { margin-top: 56px; display: grid; gap: 14px; }
+section.finding > .read { color: var(--ink-2); }
+.figure { background: var(--paper); border: 1px solid var(--rule); border-radius: 6px; padding: 18px 18px 10px; min-width: 0; }
+.figure .legend { display: flex; flex-wrap: wrap; gap: 16px; font-size: 13px; color: var(--ink-2); margin-bottom: 8px; }
+.figure .legend span { display: inline-flex; align-items: center; gap: 6px; }
+.sw { width: 14px; height: 3px; border-radius: 2px; display: inline-block; }
+.sw.box { height: 12px; width: 12px; border-radius: 2px; }
+.chart { width: 100%; position: relative; }
+.chart svg { display: block; width: 100%; height: auto; overflow: visible; }
+.chart text { font-family: var(--mono); font-size: 11px; fill: var(--ink-3); }
+.chart text.lab { font-family: var(--body); font-size: 13px; fill: var(--ink); }
+.chart text.val { fill: var(--ink-2); font-size: 12px; }
+.howto { font-size: 13px; color: var(--ink-3); margin-top: 6px; }
+.action { border-left: 3px solid var(--accent); padding: 4px 0 4px 14px; color: var(--ink); max-width: 66ch; }
+.action b { font-weight: 600; }
+
+details { margin-top: 10px; font-size: 13px; }
+details summary { cursor: pointer; color: var(--accent); width: max-content; }
+details summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.tbl { overflow-x: auto; margin-top: 8px; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+th { font-weight: 600; color: var(--ink-2); font-size: 12px; }
+td.r, th.r { text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+.months { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 6px; }
+.m { border-radius: 4px; padding: 8px 4px; text-align: center; display: grid; gap: 2px; font-size: 12px; }
+.m .ic { font-size: 15px; line-height: 1; font-weight: 600; }
+.m.ok { background: var(--good-bg); color: var(--good); }
+.m.bad { background: var(--bad-bg); color: var(--bad); }
+.m.wait { background: var(--wait-bg); color: var(--wait); }
+@media (max-width: 640px) { .months { grid-template-columns: repeat(6, minmax(0, 1fr)); } }
+.statuskey { display: flex; flex-wrap: wrap; gap: 16px; font-size: 13px; color: var(--ink-2); margin-top: 10px; }
+
+.pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+@media (max-width: 700px) { .pair { grid-template-columns: 1fr; } }
+.stat { font-family: var(--mono); font-size: 30px; font-weight: 500; }
+
+.glossary { margin-top: 56px; display: grid; gap: 14px; }
+dl { display: grid; grid-template-columns: max-content 1fr; gap: 10px 20px; margin: 0; }
+dt { font-weight: 600; }
+dd { margin: 0; color: var(--ink-2); max-width: 60ch; }
+@media (max-width: 560px) { dl { grid-template-columns: 1fr; gap: 2px 0; } dd { margin-bottom: 10px; } }
+footer { margin-top: 56px; padding-top: 20px; border-top: 1px solid var(--rule); display: grid; gap: 8px; font-size: 13px; color: var(--ink-3); }
+footer a, a { color: var(--accent); }
+
+#tip { position: fixed; pointer-events: none; background: var(--ink); color: var(--paper); font-size: 12px; line-height: 1.45;
+  padding: 7px 10px; border-radius: 4px; max-width: 260px; z-index: 20; font-family: var(--body); }
+#tip b { font-family: var(--mono); font-weight: 500; }
+@media (prefers-reduced-motion: no-preference) { .chart rect, .chart path { transition: opacity .15s; } }
+</style>
+
+<div class="wrap" id="app"></div>
+<div id="tip" hidden></div>
+
+<script>
+const D = {"generated":"21 Oct 2026","kpi":{"std":1415084201.5419774,"act":1441684054.5105689,"var":26599852.9396,"pct":0.018797364079547272,"orders":9095,"units":711511,"from":"Jan 2025","to":"Dec 2025"},"elements":[{"key":"material_usage","label":"Material usage","meaning":"used more material per unit than the bill of materials allows","amount":16538441.5135},{"key":"scrap","label":"Scrap above allowance","meaning":"scrapped more than the planned scrap allowance","amount":4606209.9665},{"key":"material_price","label":"Material price","meaning":"paid suppliers more than the standard price","amount":4141551.1671},{"key":"labor_rate","label":"Labor rate","meaning":"paid a higher hourly rate (mostly overtime)","amount":584838.5372},{"key":"overhead_efficiency","label":"Overhead","meaning":"overhead charged on the extra hours","amount":463269.4405},{"key":"labor_efficiency","label":"Labor efficiency","meaning":"took more hours than standard","amount":265542.3148}],"heat":[{"line":"Austin line 1","month":"Jan","pct":-0.00017460794681433642,"amount":-2438.4418},{"line":"Austin line 1","month":"Feb","pct":-0.00034621100058689785,"amount":-4173.4258},{"line":"Austin line 1","month":"Mar","pct":-0.0008907165007347748,"amount":-12491.896},{"line":"Austin line 1","month":"Apr","pct":-0.0005264112812766724,"amount":-6125.3675},{"line":"Austin line 1","month":"May","pct":-0.00016190138162240321,"amount":-2532.3218},{"line":"Austin line 1","month":"Jun","pct":0.0015371286394148212,"amount":18650.5089},{"line":"Austin line 1","month":"Jul","pct":0.001007796634720967,"amount":12189.6674},{"line":"Austin line 1","month":"Aug","pct":-0.0004095897012336356,"amount":-5748.6426},{"line":"Austin line 1","month":"Sep","pct":0.001006179540807036,"amount":11410.5848},{"line":"Austin line 1","month":"Oct","pct":6.801405128560821e-05,"amount":1026.234},{"line":"Austin line 1","month":"Nov","pct":0.0002670744535824267,"amount":3328.9276},{"line":"Austin line 1","month":"Dec","pct":0.0027141388569395398,"amount":34979.3615},{"line":"Austin line 2","month":"Jan","pct":0.00035102099287911124,"amount":8515.741},{"line":"Austin line 2","month":"Feb","pct":-0.00034964245447593984,"amount":-7917.6085},{"line":"Austin line 2","month":"Mar","pct":-3.112883489997901e-05,"amount":-771.6194},{"line":"Austin line 2","month":"Apr","pct":-4.72314166062415e-05,"amount":-1382.1852},{"line":"Austin line 2","month":"May","pct":-0.0009018158601084989,"amount":-22655.7091},{"line":"Austin line 2","month":"Jun","pct":0.00028314816691106954,"amount":6246.5457},{"line":"Austin line 2","month":"Jul","pct":0.0005222569690175351,"amount":11682.2555},{"line":"Austin line 2","month":"Aug","pct":-0.00046364082280910007,"amount":-13444.9909},{"line":"Austin line 2","month":"Sep","pct":0.0011511416988943088,"amount":31471.3892},{"line":"Austin line 2","month":"Oct","pct":0.00021747434156276754,"amount":5154.6617},{"line":"Austin line 2","month":"Nov","pct":4.087427724746247e-05,"amount":990.0566},{"line":"Austin line 2","month":"Dec","pct":0.00022432388705641353,"amount":5754.9337},{"line":"Fremont line 1","month":"Jan","pct":1.608747210126274e-05,"amount":389.4579},{"line":"Fremont line 1","month":"Feb","pct":-0.0007587125451680916,"amount":-17138.8809},{"line":"Fremont line 1","month":"Mar","pct":-0.0001299898620573749,"amount":-3277.9655},{"line":"Fremont line 1","month":"Apr","pct":-0.0012180933667819732,"amount":-31177.9381},{"line":"Fremont line 1","month":"May","pct":-0.0006046910292833273,"amount":-17289.7151},{"line":"Fremont line 1","month":"Jun","pct":0.0014314008982511043,"amount":35214.5937},{"line":"Fremont line 1","month":"Jul","pct":0.0004145481704258855,"amount":10154.2083},{"line":"Fremont line 1","month":"Aug","pct":-0.0006106688225996155,"amount":-16890.656},{"line":"Fremont line 1","month":"Sep","pct":0.0007492016439414923,"amount":22085.7946},{"line":"Fremont line 1","month":"Oct","pct":0.00020322542961667467,"amount":4980.6059},{"line":"Fremont line 1","month":"Nov","pct":-0.0012371581785434315,"amount":-24274.6223},{"line":"Fremont line 1","month":"Dec","pct":-0.0006245659593536199,"amount":-15812.2287},{"line":"Fremont line 2","month":"Jan","pct":0.05824881838338414,"amount":1275626.445},{"line":"Fremont line 2","month":"Feb","pct":0.058552636997889505,"amount":1423019.854},{"line":"Fremont line 2","month":"Mar","pct":0.05968497254696921,"amount":1510951.0957},{"line":"Fremont line 2","month":"Apr","pct":0.05914529002576935,"amount":1559979.366},{"line":"Fremont line 2","month":"May","pct":0.05926558114005388,"amount":1679306.4206},{"line":"Fremont line 2","month":"Jun","pct":0.0601034424177239,"amount":1195584.5114},{"line":"Fremont line 2","month":"Jul","pct":0.059013898916601665,"amount":1270156.7125},{"line":"Fremont line 2","month":"Aug","pct":0.058610953829103835,"amount":1216753.6878},{"line":"Fremont line 2","month":"Sep","pct":0.05960805582504023,"amount":1076829.4046},{"line":"Fremont line 2","month":"Oct","pct":0.05868862916927989,"amount":1280440.2412},{"line":"Fremont line 2","month":"Nov","pct":0.059111637394126754,"amount":1349215.4077},{"line":"Fremont line 2","month":"Dec","pct":0.05843188067126194,"amount":1666498.1526},{"line":"Reno line 1","month":"Jan","pct":-0.0006203292820728543,"amount":-10750.2017},{"line":"Reno line 1","month":"Feb","pct":0.0005866900491648123,"amount":12490.7156},{"line":"Reno line 1","month":"Mar","pct":-0.00156098163350584,"amount":-29429.1857},{"line":"Reno line 1","month":"Apr","pct":8.801397676004788e-05,"amount":1565.6607},{"line":"Reno line 1","month":"May","pct":-0.0005083011608399548,"amount":-8531.2696},{"line":"Reno line 1","month":"Jun","pct":0.00040086942698709253,"amount":6683.5976},{"line":"Reno line 1","month":"Jul","pct":0.0004877035459099044,"amount":9544.5399},{"line":"Reno line 1","month":"Aug","pct":-0.0003226876761635544,"amount":-6421.7058},{"line":"Reno line 1","month":"Sep","pct":0.0011410293433696016,"amount":23065.0392},{"line":"Reno line 1","month":"Oct","pct":-0.0005633460934648091,"amount":-11634.7336},{"line":"Reno line 1","month":"Nov","pct":0.0005053279384985437,"amount":8648.0726},{"line":"Reno line 1","month":"Dec","pct":0.0006852299841126808,"amount":11364.9728},{"line":"Reno line 2","month":"Jan","pct":0.0005257005722723086,"amount":5754.4296},{"line":"Reno line 2","month":"Feb","pct":0.00019825900577499553,"amount":1871.4462},{"line":"Reno line 2","month":"Mar","pct":-4.853327226827719e-06,"amount":-53.7928},{"line":"Reno line 2","month":"Apr","pct":0.0006197621646967502,"amount":6043.2963},{"line":"Reno line 2","month":"May","pct":-0.0006213793130205729,"amount":-6277.1837},{"line":"Reno line 2","month":"Jun","pct":-3.59814377487272e-05,"amount":-382.488},{"line":"Reno line 2","month":"Jul","pct":0.00021104847959147485,"amount":2186.9017},{"line":"Reno line 2","month":"Aug","pct":7.592666866669582e-05,"amount":743.5595},{"line":"Reno line 2","month":"Sep","pct":-0.0001540349107587844,"amount":-1810.5056},{"line":"Reno line 2","month":"Oct","pct":-0.00023002163345236458,"amount":-3149.8699},{"line":"Reno line 2","month":"Nov","pct":-9.026599512582658e-05,"amount":-1050.3408},{"line":"Reno line 2","month":"Dec","pct":0.0005242699374695177,"amount":4927.9471}],"lines":["Austin line 1","Austin line 2","Fremont line 1","Fremont line 2","Reno line 1","Reno line 2"],"usage_line":{"line":"Fremont line 2","amount":16504361.2991,"pct":0.05902175594937873,"months_over":12,"others_amount":34080.2144},"supplier":{"id":"S007","name":"Atlas Metals 07","month":"Jul","before":101.00467290845431,"after":122.1466697834159,"extra_cost":1469761.69,"series":[{"supplier":"S001","name":"Granite Electronics 01","month":"Jan","index":100.11068342599673},{"supplier":"S001","name":"Granite Electronics 01","month":"Feb","index":101.89923756255351},{"supplier":"S001","name":"Granite Electronics 01","month":"Mar","index":99.24681807357734},{"supplier":"S001","name":"Granite Electronics 01","month":"Apr","index":100.58494109832179},{"supplier":"S001","name":"Granite Electronics 01","month":"May","index":99.86618378698535},{"supplier":"S001","name":"Granite Electronics 01","month":"Jun","index":101.02034376433784},{"supplier":"S001","name":"Granite Electronics 01","month":"Jul","index":100.48318176012523},{"supplier":"S001","name":"Granite Electronics 01","month":"Aug","index":99.76188695802502},{"supplier":"S001","name":"Granite Electronics 01","month":"Sep","index":100.14852824501428},{"supplier":"S001","name":"Granite Electronics 01","month":"Oct","index":99.73008868498904},{"supplier":"S001","name":"Granite Electronics 01","month":"Nov","index":99.69293877541311},{"supplier":"S001","name":"Granite Electronics 01","month":"Dec","index":100.4730743911048},{"supplier":"S002","name":"Summit Materials 02","month":"Jan","index":99.29034502874326},{"supplier":"S002","name":"Summit Materials 02","month":"Feb","index":98.58394603377427},{"supplier":"S002","name":"Summit Materials 02","month":"Mar","index":99.36054214032272},{"supplier":"S002","name":"Summit Materials 02","month":"Apr","index":100.18235776017401},{"supplier":"S002","name":"Summit Materials 02","month":"May","index":99.60134121601041},{"supplier":"S002","name":"Summit Materials 02","month":"Jun","index":100.0471515834865},{"supplier":"S002","name":"Summit Materials 02","month":"Jul","index":100.9690622101494},{"supplier":"S002","name":"Summit Materials 02","month":"Aug","index":100.84456853620574},{"supplier":"S002","name":"Summit Materials 02","month":"Sep","index":99.83656881598104},{"supplier":"S002","name":"Summit Materials 02","month":"Oct","index":100.46429636145376},{"supplier":"S002","name":"Summit Materials 02","month":"Nov","index":100.52812399701527},{"supplier":"S002","name":"Summit Materials 02","month":"Dec","index":100.80023897345716},{"supplier":"S003","name":"Pioneer Polymers 03","month":"Jan","index":100.4268685704908},{"supplier":"S003","name":"Pioneer Polymers 03","month":"Feb","index":100.38336179450162},{"supplier":"S003","name":"Pioneer Polymers 03","month":"Mar","index":100.47041960186966},{"supplier":"S003","name":"Pioneer Polymers 03","month":"Apr","index":98.97123883441499},{"supplier":"S003","name":"Pioneer Polymers 03","month":"May","index":100.214775034538},{"supplier":"S003","name":"Pioneer Polymers 03","month":"Jun","index":99.198953758398},{"supplier":"S003","name":"Pioneer Polymers 03","month":"Jul","index":101.46160675858737},{"supplier":"S003","name":"Pioneer Polymers 03","month":"Aug","index":100.2251868121762},{"supplier":"S003","name":"Pioneer Polymers 03","month":"Sep","index":100.37803093904925},{"supplier":"S003","name":"Pioneer Polymers 03","month":"Oct","index":101.90587684280148},{"supplier":"S003","name":"Pioneer Polymers 03","month":"Nov","index":100.66808351549517},{"supplier":"S003","name":"Pioneer Polymers 03","month":"Dec","index":101.2942281514739},{"supplier":"S004","name":"Vector Fastening 04","month":"Jan","index":99.48510498509829},{"supplier":"S004","name":"Vector Fastening 04","month":"Feb","index":100.68383754328721},{"supplier":"S004","name":"Vector Fastening 04","month":"Mar","index":100.50087394099207},{"supplier":"S004","name":"Vector Fastening 04","month":"Apr","index":101.5344088163411},{"supplier":"S004","name":"Vector Fastening 04","month":"May","index":101.83484567036422},{"supplier":"S004","name":"Vector Fastening 04","month":"Jun","index":102.3257096295773},{"supplier":"S004","name":"Vector Fastening 04","month":"Jul","index":103.51357901796635},{"supplier":"S004","name":"Vector Fastening 04","month":"Aug","index":102.93941711668533},{"supplier":"S004","name":"Vector Fastening 04","month":"Sep","index":102.85715972220252},{"supplier":"S004","name":"Vector Fastening 04","month":"Oct","index":103.09232354134767},{"supplier":"S004","name":"Vector Fastening 04","month":"Nov","index":104.00311450903537},{"supplier":"S004","name":"Vector Fastening 04","month":"Dec","index":104.47087580674263},{"supplier":"S005","name":"Keystone Components 05","month":"Jan","index":100.59485621101798},{"supplier":"S005","name":"Keystone Components 05","month":"Feb","index":100.30032880827638},{"supplier":"S005","name":"Keystone Components 05","month":"Mar","index":101.0286473746779},{"supplier":"S005","name":"Keystone Components 05","month":"Apr","index":100.4708044613519},{"supplier":"S005","name":"Keystone Components 05","month":"May","index":101.78681215483356},{"supplier":"S005","name":"Keystone Components 05","month":"Jun","index":101.7785721020096},{"supplier":"S005","name":"Keystone Components 05","month":"Jul","index":102.75776325132746},{"supplier":"S005","name":"Keystone Components 05","month":"Aug","index":103.25797268990617},{"supplier":"S005","name":"Keystone Components 05","month":"Sep","index":103.58520345203767},{"supplier":"S005","name":"Keystone Components 05","month":"Oct","index":104.40189413630956},{"supplier":"S005","name":"Keystone Components 05","month":"Nov","index":103.70840125027107},{"supplier":"S005","name":"Keystone Components 05","month":"Dec","index":103.99733227957894},{"supplier":"S006","name":"Meridian Industrial 06","month":"Jan","index":99.43233459323275},{"supplier":"S006","name":"Meridian Industrial 06","month":"Feb","index":99.52468404294974},{"supplier":"S006","name":"Meridian Industrial 06","month":"Mar","index":101.1932483775493},{"supplier":"S006","name":"Meridian Industrial 06","month":"Apr","index":101.5953060794963},{"supplier":"S006","name":"Meridian Industrial 06","month":"May","index":102.74204372625059},{"supplier":"S006","name":"Meridian Industrial 06","month":"Jun","index":100.34687357995755},{"supplier":"S006","name":"Meridian Industrial 06","month":"Jul","index":102.12269576107478},{"supplier":"S006","name":"Meridian Industrial 06","month":"Aug","index":104.18445206484722},{"supplier":"S006","name":"Meridian Industrial 06","month":"Sep","index":103.77214963864147},{"supplier":"S006","name":"Meridian Industrial 06","month":"Oct","index":102.7690903685144},{"supplier":"S006","name":"Meridian Industrial 06","month":"Nov","index":104.95680092076427},{"supplier":"S006","name":"Meridian Industrial 06","month":"Dec","index":106.30723020516623},{"supplier":"S007","name":"Atlas Metals 07","month":"Jan","index":99.81182745179507},{"supplier":"S007","name":"Atlas Metals 07","month":"Feb","index":100.85631257072195},{"supplier":"S007","name":"Atlas Metals 07","month":"Mar","index":101.15746202580196},{"supplier":"S007","name":"Atlas Metals 07","month":"Apr","index":101.3327083072339},{"supplier":"S007","name":"Atlas Metals 07","month":"May","index":101.29053707326644},{"supplier":"S007","name":"Atlas Metals 07","month":"Jun","index":101.57919002190657},{"supplier":"S007","name":"Atlas Metals 07","month":"Jul","index":121.10399318622449},{"supplier":"S007","name":"Atlas Metals 07","month":"Aug","index":121.87821425276067},{"supplier":"S007","name":"Atlas Metals 07","month":"Sep","index":121.97835200822475},{"supplier":"S007","name":"Atlas Metals 07","month":"Oct","index":122.05321104812415},{"supplier":"S007","name":"Atlas Metals 07","month":"Nov","index":122.47645575992041},{"supplier":"S007","name":"Atlas Metals 07","month":"Dec","index":123.38979244524087},{"supplier":"S008","name":"Redwood Electronics 08","month":"Jan","index":102.03979404971982},{"supplier":"S008","name":"Redwood Electronics 08","month":"Feb","index":99.41939067604852},{"supplier":"S008","name":"Redwood Electronics 08","month":"Mar","index":101.15607221206268},{"supplier":"S008","name":"Redwood Electronics 08","month":"Apr","index":101.63755154805725},{"supplier":"S008","name":"Redwood Electronics 08","month":"May","index":101.58336697355122},{"supplier":"S008","name":"Redwood Electronics 08","month":"Jun","index":101.85404480058806},{"supplier":"S008","name":"Redwood Electronics 08","month":"Jul","index":102.84297034691555},{"supplier":"S008","name":"Redwood Electronics 08","month":"Aug","index":103.03579606260212},{"supplier":"S008","name":"Redwood Electronics 08","month":"Sep","index":103.15934070112426},{"supplier":"S008","name":"Redwood Electronics 08","month":"Oct","index":103.84641203630547},{"supplier":"S008","name":"Redwood Electronics 08","month":"Nov","index":103.35129820663053},{"supplier":"S008","name":"Redwood Electronics 08","month":"Dec","index":105.11368546782504},{"supplier":"S009","name":"Apex Materials 09","month":"Jan","index":99.40219895451159},{"supplier":"S009","name":"Apex Materials 09","month":"Feb","index":99.40782325596082},{"supplier":"S009","name":"Apex Materials 09","month":"Mar","index":100.47782186505995},{"supplier":"S009","name":"Apex Materials 09","month":"Apr","index":99.95534620024482},{"supplier":"S009","name":"Apex Materials 09","month":"May","index":100.07922709314627},{"supplier":"S009","name":"Apex Materials 09","month":"Jun","index":101.89335503825656},{"supplier":"S009","name":"Apex Materials 09","month":"Jul","index":101.09769099969064},{"supplier":"S009","name":"Apex Materials 09","month":"Aug","index":101.23405489054446},{"supplier":"S009","name":"Apex Materials 09","month":"Sep","index":103.11003625180157},{"supplier":"S009","name":"Apex Materials 09","month":"Oct","index":102.69836295992008},{"supplier":"S009","name":"Apex Materials 09","month":"Nov","index":102.49284335840144},{"supplier":"S009","name":"Apex Materials 09","month":"Dec","index":102.41756684744568},{"supplier":"S010","name":"Granite Polymers 10","month":"Jan","index":99.88839122995056},{"supplier":"S010","name":"Granite Polymers 10","month":"Feb","index":99.69642893548803},{"supplier":"S010","name":"Granite Polymers 10","month":"Mar","index":100.75701266427214},{"supplier":"S010","name":"Granite Polymers 10","month":"Apr","index":100.65895424652189},{"supplier":"S010","name":"Granite Polymers 10","month":"May","index":99.84929979840358},{"supplier":"S010","name":"Granite Polymers 10","month":"Jun","index":100.26498540995173},{"supplier":"S010","name":"Granite Polymers 10","month":"Jul","index":100.19611781715754},{"supplier":"S010","name":"Granite Polymers 10","month":"Aug","index":100.79856129820998},{"supplier":"S010","name":"Granite Polymers 10","month":"Sep","index":99.69587726541647},{"supplier":"S010","name":"Granite Polymers 10","month":"Oct","index":99.98936138122092},{"supplier":"S010","name":"Granite Polymers 10","month":"Nov","index":99.08727240052418},{"supplier":"S010","name":"Granite Polymers 10","month":"Dec","index":100.5951815504829},{"supplier":"S011","name":"Summit Fastening 11","month":"Jan","index":100.03612852168357},{"supplier":"S011","name":"Summit Fastening 11","month":"Feb","index":100.00127550100837},{"supplier":"S011","name":"Summit Fastening 11","month":"Mar","index":99.65944358610841},{"supplier":"S011","name":"Summit Fastening 11","month":"Apr","index":99.93971103281379},{"supplier":"S011","name":"Summit Fastening 11","month":"May","index":100.77275860837739},{"supplier":"S011","name":"Summit Fastening 11","month":"Jun","index":100.41766041463723},{"supplier":"S011","name":"Summit Fastening 11","month":"Jul","index":100.00805304287984},{"supplier":"S011","name":"Summit Fastening 11","month":"Aug","index":99.40180428180032},{"supplier":"S011","name":"Summit Fastening 11","month":"Sep","index":100.38241253630802},{"supplier":"S011","name":"Summit Fastening 11","month":"Oct","index":100.15379119519734},{"supplier":"S011","name":"Summit Fastening 11","month":"Nov","index":100.17914119787154},{"supplier":"S011","name":"Summit Fastening 11","month":"Dec","index":101.02955449810592},{"supplier":"S012","name":"Pioneer Components 12","month":"Jan","index":100.60436583389313},{"supplier":"S012","name":"Pioneer Components 12","month":"Feb","index":100.27617469235474},{"supplier":"S012","name":"Pioneer Components 12","month":"Mar","index":100.12523715037693},{"supplier":"S012","name":"Pioneer Components 12","month":"Apr","index":100.22242104606109},{"supplier":"S012","name":"Pioneer Components 12","month":"May","index":100.04009980663099},{"supplier":"S012","name":"Pioneer Components 12","month":"Jun","index":99.58874888728457},{"supplier":"S012","name":"Pioneer Components 12","month":"Jul","index":99.51499207615385},{"supplier":"S012","name":"Pioneer Components 12","month":"Aug","index":100.73643323891116},{"supplier":"S012","name":"Pioneer Components 12","month":"Sep","index":100.29318077188456},{"supplier":"S012","name":"Pioneer Components 12","month":"Oct","index":100.00323764471699},{"supplier":"S012","name":"Pioneer Components 12","month":"Nov","index":99.40010206806907},{"supplier":"S012","name":"Pioneer Components 12","month":"Dec","index":99.68250162656086},{"supplier":"S013","name":"Vector Industrial 13","month":"Jan","index":99.43152993166859},{"supplier":"S013","name":"Vector Industrial 13","month":"Feb","index":100.42610730115162},{"supplier":"S013","name":"Vector Industrial 13","month":"Mar","index":100.50609557150295},{"supplier":"S013","name":"Vector Industrial 13","month":"Apr","index":99.57853269653573},{"supplier":"S013","name":"Vector Industrial 13","month":"May","index":100.25176369361299},{"supplier":"S013","name":"Vector Industrial 13","month":"Jun","index":100.17117866601355},{"supplier":"S013","name":"Vector Industrial 13","month":"Jul","index":100.26229007664337},{"supplier":"S013","name":"Vector Industrial 13","month":"Aug","index":100.59523620144122},{"supplier":"S013","name":"Vector Industrial 13","month":"Sep","index":100.06108934549204},{"supplier":"S013","name":"Vector Industrial 13","month":"Oct","index":99.7566095679997},{"supplier":"S013","name":"Vector Industrial 13","month":"Nov","index":100.29811091620745},{"supplier":"S013","name":"Vector Industrial 13","month":"Dec","index":101.6285167209421},{"supplier":"S014","name":"Keystone Metals 14","month":"Jan","index":99.59841213051851},{"supplier":"S014","name":"Keystone Metals 14","month":"Feb","index":100.68358086779813},{"supplier":"S014","name":"Keystone Metals 14","month":"Mar","index":99.28857744066926},{"supplier":"S014","name":"Keystone Metals 14","month":"Apr","index":100.90041374210386},{"supplier":"S014","name":"Keystone Metals 14","month":"May","index":99.32292247489018},{"supplier":"S014","name":"Keystone Metals 14","month":"Jun","index":100.69873275655871},{"supplier":"S014","name":"Keystone Metals 14","month":"Jul","index":99.5363096596141},{"supplier":"S014","name":"Keystone Metals 14","month":"Aug","index":99.0907047367375},{"supplier":"S014","name":"Keystone Metals 14","month":"Sep","index":100.42082632654555},{"supplier":"S014","name":"Keystone Metals 14","month":"Oct","index":100.6046702312785},{"supplier":"S014","name":"Keystone Metals 14","month":"Nov","index":99.33675598591299},{"supplier":"S014","name":"Keystone Metals 14","month":"Dec","index":99.58437123993413},{"supplier":"S015","name":"Meridian Electronics 15","month":"Jan","index":99.45065622127531},{"supplier":"S015","name":"Meridian Electronics 15","month":"Feb","index":100.3429984267243},{"supplier":"S015","name":"Meridian Electronics 15","month":"Mar","index":99.36111019669522},{"supplier":"S015","name":"Meridian Electronics 15","month":"Apr","index":99.81792279204045},{"supplier":"S015","name":"Meridian Electronics 15","month":"May","index":100.28324392146727},{"supplier":"S015","name":"Meridian Electronics 15","month":"Jun","index":100.34763380253084},{"supplier":"S015","name":"Meridian Electronics 15","month":"Jul","index":99.45075566207366},{"supplier":"S015","name":"Meridian Electronics 15","month":"Aug","index":99.70567207888058},{"supplier":"S015","name":"Meridian Electronics 15","month":"Sep","index":99.79531164656326},{"supplier":"S015","name":"Meridian Electronics 15","month":"Oct","index":99.9018706081415},{"supplier":"S015","name":"Meridian Electronics 15","month":"Nov","index":100.26941254618637},{"supplier":"S015","name":"Meridian Electronics 15","month":"Dec","index":100.13375612072255},{"supplier":"S016","name":"Atlas Materials 16","month":"Jan","index":99.28886512494118},{"supplier":"S016","name":"Atlas Materials 16","month":"Feb","index":99.92352558736968},{"supplier":"S016","name":"Atlas Materials 16","month":"Mar","index":99.29511973416582},{"supplier":"S016","name":"Atlas Materials 16","month":"Apr","index":99.42840879051002},{"supplier":"S016","name":"Atlas Materials 16","month":"May","index":99.77163249372698},{"supplier":"S016","name":"Atlas Materials 16","month":"Jun","index":99.69887352344313},{"supplier":"S016","name":"Atlas Materials 16","month":"Jul","index":100.12609999851729},{"supplier":"S016","name":"Atlas Materials 16","month":"Aug","index":100.22259715148859},{"supplier":"S016","name":"Atlas Materials 16","month":"Sep","index":100.7623459978882},{"supplier":"S016","name":"Atlas Materials 16","month":"Oct","index":100.02299244827091},{"supplier":"S016","name":"Atlas Materials 16","month":"Nov","index":100.25244982147099},{"supplier":"S016","name":"Atlas Materials 16","month":"Dec","index":99.89978907011577},{"supplier":"S017","name":"Redwood Polymers 17","month":"Jan","index":99.614796560361},{"supplier":"S017","name":"Redwood Polymers 17","month":"Feb","index":100.59563216478932},{"supplier":"S017","name":"Redwood Polymers 17","month":"Mar","index":100.00536130151923},{"supplier":"S017","name":"Redwood Polymers 17","month":"Apr","index":100.43187316327112},{"supplier":"S017","name":"Redwood Polymers 17","month":"May","index":99.65437393228038},{"supplier":"S017","name":"Redwood Polymers 17","month":"Jun","index":99.56233348173835},{"supplier":"S017","name":"Redwood Polymers 17","month":"Jul","index":100.0515129754882},{"supplier":"S017","name":"Redwood Polymers 17","month":"Aug","index":99.37616547190245},{"supplier":"S017","name":"Redwood Polymers 17","month":"Sep","index":99.94999516575271},{"supplier":"S017","name":"Redwood Polymers 17","month":"Oct","index":100.04051274522247},{"supplier":"S017","name":"Redwood Polymers 17","month":"Nov","index":100.36292193046808},{"supplier":"S017","name":"Redwood Polymers 17","month":"Dec","index":100.1723520335465},{"supplier":"S018","name":"Apex Fastening 18","month":"Jan","index":100.40713600123897},{"supplier":"S018","name":"Apex Fastening 18","month":"Feb","index":100.99749100559333},{"supplier":"S018","name":"Apex Fastening 18","month":"Mar","index":100.19441273051325},{"supplier":"S018","name":"Apex Fastening 18","month":"Apr","index":99.91856472016379},{"supplier":"S018","name":"Apex Fastening 18","month":"May","index":100.24898452758899},{"supplier":"S018","name":"Apex Fastening 18","month":"Jun","index":99.5950869167482},{"supplier":"S018","name":"Apex Fastening 18","month":"Jul","index":99.83788049314485},{"supplier":"S018","name":"Apex Fastening 18","month":"Aug","index":99.44116475223433},{"supplier":"S018","name":"Apex Fastening 18","month":"Sep","index":99.38792579730601},{"supplier":"S018","name":"Apex Fastening 18","month":"Oct","index":99.7910610633485},{"supplier":"S018","name":"Apex Fastening 18","month":"Nov","index":99.95765669322392},{"supplier":"S018","name":"Apex Fastening 18","month":"Dec","index":100.34974780913805},{"supplier":"S019","name":"Granite Components 19","month":"Jan","index":100.3218075179473},{"supplier":"S019","name":"Granite Components 19","month":"Feb","index":100.36965147928933},{"supplier":"S019","name":"Granite Components 19","month":"Mar","index":99.51574667491204},{"supplier":"S019","name":"Granite Components 19","month":"Apr","index":100.7304227166557},{"supplier":"S019","name":"Granite Components 19","month":"May","index":100.32968689516925},{"supplier":"S019","name":"Granite Components 19","month":"Jun","index":100.09350831817797},{"supplier":"S019","name":"Granite Components 19","month":"Jul","index":100.26446202090904},{"supplier":"S019","name":"Granite Components 19","month":"Aug","index":99.79216442949733},{"supplier":"S019","name":"Granite Components 19","month":"Sep","index":100.06524988974964},{"supplier":"S019","name":"Granite Components 19","month":"Oct","index":99.84986520657559},{"supplier":"S019","name":"Granite Components 19","month":"Nov","index":100.17605796617214},{"supplier":"S019","name":"Granite Components 19","month":"Dec","index":100.22568064627498},{"supplier":"S020","name":"Summit Industrial 20","month":"Jan","index":100.85323765327153},{"supplier":"S020","name":"Summit Industrial 20","month":"Feb","index":99.60143648406671},{"supplier":"S020","name":"Summit Industrial 20","month":"Mar","index":100.83218609228862},{"supplier":"S020","name":"Summit Industrial 20","month":"Apr","index":99.33342198003866},{"supplier":"S020","name":"Summit Industrial 20","month":"May","index":100.75148147409705},{"supplier":"S020","name":"Summit Industrial 20","month":"Jun","index":100.80624401524766},{"supplier":"S020","name":"Summit Industrial 20","month":"Jul","index":98.92853078959622},{"supplier":"S020","name":"Summit Industrial 20","month":"Aug","index":100.32542875397392},{"supplier":"S020","name":"Summit Industrial 20","month":"Sep","index":100.55564154570294},{"supplier":"S020","name":"Summit Industrial 20","month":"Oct","index":101.04675539463842},{"supplier":"S020","name":"Summit Industrial 20","month":"Nov","index":101.0075359342592},{"supplier":"S020","name":"Summit Industrial 20","month":"Dec","index":100.48504498564881},{"supplier":"S021","name":"Pioneer Metals 21","month":"Jan","index":100.69510155778941},{"supplier":"S021","name":"Pioneer Metals 21","month":"Feb","index":100.28517883350536},{"supplier":"S021","name":"Pioneer Metals 21","month":"Mar","index":100.29178949670573},{"supplier":"S021","name":"Pioneer Metals 21","month":"Apr","index":99.87617015449544},{"supplier":"S021","name":"Pioneer Metals 21","month":"May","index":99.8450827003541},{"supplier":"S021","name":"Pioneer Metals 21","month":"Jun","index":99.89104984595677},{"supplier":"S021","name":"Pioneer Metals 21","month":"Jul","index":100.15022884105502},{"supplier":"S021","name":"Pioneer Metals 21","month":"Aug","index":99.57562685011035},{"supplier":"S021","name":"Pioneer Metals 21","month":"Sep","index":99.94228993005909},{"supplier":"S021","name":"Pioneer Metals 21","month":"Oct","index":99.68443375789809},{"supplier":"S021","name":"Pioneer Metals 21","month":"Nov","index":100.50475502238072},{"supplier":"S021","name":"Pioneer Metals 21","month":"Dec","index":98.96274268900648},{"supplier":"S022","name":"Vector Electronics 22","month":"Jan","index":99.86839550387262},{"supplier":"S022","name":"Vector Electronics 22","month":"Feb","index":99.54046298893228},{"supplier":"S022","name":"Vector Electronics 22","month":"Mar","index":100.09420868302014},{"supplier":"S022","name":"Vector Electronics 22","month":"Apr","index":98.63433367133395},{"supplier":"S022","name":"Vector Electronics 22","month":"May","index":98.18702221455129},{"supplier":"S022","name":"Vector Electronics 22","month":"Jun","index":102.56736639986192},{"supplier":"S022","name":"Vector Electronics 22","month":"Jul","index":99.5570034447297},{"supplier":"S022","name":"Vector Electronics 22","month":"Aug","index":98.99462794761709},{"supplier":"S022","name":"Vector Electronics 22","month":"Sep","index":97.27082479342408},{"supplier":"S022","name":"Vector Electronics 22","month":"Oct","index":99.83603374252982},{"supplier":"S022","name":"Vector Electronics 22","month":"Nov","index":100.78099717373951},{"supplier":"S022","name":"Vector Electronics 22","month":"Dec","index":103.25127828957304},{"supplier":"S023","name":"Keystone Materials 23","month":"Jan","index":100.09682242073424},{"supplier":"S023","name":"Keystone Materials 23","month":"Feb","index":100.65489596767537},{"supplier":"S023","name":"Keystone Materials 23","month":"Mar","index":100.51073775709953},{"supplier":"S023","name":"Keystone Materials 23","month":"Apr","index":99.4518043977658},{"supplier":"S023","name":"Keystone Materials 23","month":"May","index":99.6935826135141},{"supplier":"S023","name":"Keystone Materials 23","month":"Jun","index":99.39201326333935},{"supplier":"S023","name":"Keystone Materials 23","month":"Jul","index":100.55566030180358},{"supplier":"S023","name":"Keystone Materials 23","month":"Aug","index":99.55962525916419},{"supplier":"S023","name":"Keystone Materials 23","month":"Sep","index":100.72769613661123},{"supplier":"S023","name":"Keystone Materials 23","month":"Oct","index":99.73355208430822},{"supplier":"S023","name":"Keystone Materials 23","month":"Nov","index":100.69845379405945},{"supplier":"S023","name":"Keystone Materials 23","month":"Dec","index":100.48340385091576},{"supplier":"S024","name":"Meridian Polymers 24","month":"Jan","index":99.75105210129851},{"supplier":"S024","name":"Meridian Polymers 24","month":"Feb","index":99.58158417006513},{"supplier":"S024","name":"Meridian Polymers 24","month":"Mar","index":99.88756557011794},{"supplier":"S024","name":"Meridian Polymers 24","month":"Apr","index":98.58206574664825},{"supplier":"S024","name":"Meridian Polymers 24","month":"May","index":100.3512038363926},{"supplier":"S024","name":"Meridian Polymers 24","month":"Jun","index":100.03005458263596},{"supplier":"S024","name":"Meridian Polymers 24","month":"Jul","index":100.11310432747447},{"supplier":"S024","name":"Meridian Polymers 24","month":"Aug","index":100.2902469461294},{"supplier":"S024","name":"Meridian Polymers 24","month":"Sep","index":98.79302184317578},{"supplier":"S024","name":"Meridian Polymers 24","month":"Oct","index":100.25619072675974},{"supplier":"S024","name":"Meridian Polymers 24","month":"Nov","index":100.97128665681348},{"supplier":"S024","name":"Meridian Polymers 24","month":"Dec","index":100.8859413634733},{"supplier":"S025","name":"Atlas Fastening 25","month":"Jan","index":99.6815243863699},{"supplier":"S025","name":"Atlas Fastening 25","month":"Feb","index":100.01329356451404},{"supplier":"S025","name":"Atlas Fastening 25","month":"Mar","index":98.5975119284289},{"supplier":"S025","name":"Atlas Fastening 25","month":"Apr","index":101.06956808573077},{"supplier":"S025","name":"Atlas Fastening 25","month":"May","index":100.36180080880142},{"supplier":"S025","name":"Atlas Fastening 25","month":"Jun","index":99.63632990025155},{"supplier":"S025","name":"Atlas Fastening 25","month":"Jul","index":98.2190548310385},{"supplier":"S025","name":"Atlas Fastening 25","month":"Aug","index":98.85978405023837},{"supplier":"S025","name":"Atlas Fastening 25","month":"Sep","index":99.98035539535219},{"supplier":"S025","name":"Atlas Fastening 25","month":"Oct","index":99.45391680447202},{"supplier":"S025","name":"Atlas Fastening 25","month":"Nov","index":98.85964233305901},{"supplier":"S025","name":"Atlas Fastening 25","month":"Dec","index":99.5189649625015}]},"scrap":{"line":"Reno line 1","peak":0.060532973072096936,"normal":0.019257263331649437,"months":["Apr","May"],"reason":"machine fault","reason_share":0.7313475992384986,"series":[{"line":"Austin line 1","month":"Jan","rate":0.021964756324968176},{"line":"Austin line 1","month":"Feb","rate":0.022971385798182125},{"line":"Austin line 1","month":"Mar","rate":0.021490299406857934},{"line":"Austin line 1","month":"Apr","rate":0.020647485210456718},{"line":"Austin line 1","month":"May","rate":0.01945599829658736},{"line":"Austin line 1","month":"Jun","rate":0.019748785864478497},{"line":"Austin line 1","month":"Jul","rate":0.021476451747575842},{"line":"Austin line 1","month":"Aug","rate":0.019105354865137297},{"line":"Austin line 1","month":"Sep","rate":0.01808642526521069},{"line":"Austin line 1","month":"Oct","rate":0.01686716556635388},{"line":"Austin line 1","month":"Nov","rate":0.01931578436666246},{"line":"Austin line 1","month":"Dec","rate":0.018047748027822975},{"line":"Austin line 2","month":"Jan","rate":0.022534856174490657},{"line":"Austin line 2","month":"Feb","rate":0.021940672060020407},{"line":"Austin line 2","month":"Mar","rate":0.024550827276734327},{"line":"Austin line 2","month":"Apr","rate":0.020275642705374332},{"line":"Austin line 2","month":"May","rate":0.02372214109863079},{"line":"Austin line 2","month":"Jun","rate":0.019401842077996678},{"line":"Austin line 2","month":"Jul","rate":0.021134024989301083},{"line":"Austin line 2","month":"Aug","rate":0.018169439734530852},{"line":"Austin line 2","month":"Sep","rate":0.021094314330882824},{"line":"Austin line 2","month":"Oct","rate":0.017974110062165104},{"line":"Austin line 2","month":"Nov","rate":0.02237338287899692},{"line":"Austin line 2","month":"Dec","rate":0.019323869898618624},{"line":"Fremont line 1","month":"Jan","rate":0.018006517543075376},{"line":"Fremont line 1","month":"Feb","rate":0.01874612171375459},{"line":"Fremont line 1","month":"Mar","rate":0.01622698536397933},{"line":"Fremont line 1","month":"Apr","rate":0.015326232385078761},{"line":"Fremont line 1","month":"May","rate":0.020306931577380356},{"line":"Fremont line 1","month":"Jun","rate":0.015473604112459894},{"line":"Fremont line 1","month":"Jul","rate":0.02050708526961788},{"line":"Fremont line 1","month":"Aug","rate":0.016181342336309655},{"line":"Fremont line 1","month":"Sep","rate":0.020286049740039207},{"line":"Fremont line 1","month":"Oct","rate":0.018865809807135713},{"line":"Fremont line 1","month":"Nov","rate":0.018910504223802155},{"line":"Fremont line 1","month":"Dec","rate":0.020218487499300546},{"line":"Fremont line 2","month":"Jan","rate":0.01803252263993941},{"line":"Fremont line 2","month":"Feb","rate":0.0172141094725666},{"line":"Fremont line 2","month":"Mar","rate":0.020553987835115358},{"line":"Fremont line 2","month":"Apr","rate":0.016265171972472584},{"line":"Fremont line 2","month":"May","rate":0.014947262816209547},{"line":"Fremont line 2","month":"Jun","rate":0.01943132398082823},{"line":"Fremont line 2","month":"Jul","rate":0.0157735588430206},{"line":"Fremont line 2","month":"Aug","rate":0.0163593530813715},{"line":"Fremont line 2","month":"Sep","rate":0.01838526157358203},{"line":"Fremont line 2","month":"Oct","rate":0.017332941798797574},{"line":"Fremont line 2","month":"Nov","rate":0.015690970632853782},{"line":"Fremont line 2","month":"Dec","rate":0.018104933035571497},{"line":"Reno line 1","month":"Jan","rate":0.024711289614302412},{"line":"Reno line 1","month":"Feb","rate":0.020240767657079797},{"line":"Reno line 1","month":"Mar","rate":0.0235020323688382},{"line":"Reno line 1","month":"Apr","rate":0.0601907037705866},{"line":"Reno line 1","month":"May","rate":0.060532973072096936},{"line":"Reno line 1","month":"Jun","rate":0.017609791689677457},{"line":"Reno line 1","month":"Jul","rate":0.01917235733170845},{"line":"Reno line 1","month":"Aug","rate":0.01567905084215383},{"line":"Reno line 1","month":"Sep","rate":0.018404913502595738},{"line":"Reno line 1","month":"Oct","rate":0.017830229942422296},{"line":"Reno line 1","month":"Nov","rate":0.01967130399433555},{"line":"Reno line 1","month":"Dec","rate":0.019313455867869957},{"line":"Reno line 2","month":"Jan","rate":0.022185068054777227},{"line":"Reno line 2","month":"Feb","rate":0.01887980517592038},{"line":"Reno line 2","month":"Mar","rate":0.019241770956072213},{"line":"Reno line 2","month":"Apr","rate":0.017140232529654464},{"line":"Reno line 2","month":"May","rate":0.021512086526864857},{"line":"Reno line 2","month":"Jun","rate":0.01894202809331235},{"line":"Reno line 2","month":"Jul","rate":0.02028162959535041},{"line":"Reno line 2","month":"Aug","rate":0.0212001681779909},{"line":"Reno line 2","month":"Sep","rate":0.020821491810640753},{"line":"Reno line 2","month":"Oct","rate":0.0164041489443003},{"line":"Reno line 2","month":"Nov","rate":0.0201619058261083},{"line":"Reno line 2","month":"Dec","rate":0.01984563092567536}],"highlight":"Reno line 1"},"breaks":[{"cause":"Missing posting","what":"A day of material issues never reached the ledger.","month":"Mar","period":"2025-03","plants":"Fremont","amount":2807484.04},{"cause":"Duplicate posting","what":"A day of goods receipts was posted to the ledger twice.","month":"May","period":"2025-05","plants":"Austin","amount":559856.42},{"cause":"Wrong plant","what":"Labor cost was booked to another plant.","month":"Aug","period":"2025-08","plants":"Austin, Reno","amount":11728.47},{"cause":"Cutoff timing","what":"Shipments from the last day of the month landed in the next month.","month":"Oct","period":"2025-10","plants":"Reno","amount":1696273.24}],"corrections":5,"wip":{"total":39,"ties":39},"close":[{"month":"Jan","status":"signed_off","why":""},{"month":"Feb","status":"signed_off","why":""},{"month":"Mar","status":"blocked","why":"Ledger does not match the cost records"},{"month":"Apr","status":"blocked","why":"Waiting on the month before"},{"month":"May","status":"blocked","why":"Ledger does not match the cost records"},{"month":"Jun","status":"blocked","why":"Waiting on the month before"},{"month":"Jul","status":"blocked","why":"Waiting on the month before"},{"month":"Aug","status":"blocked","why":"Ledger does not match the cost records"},{"month":"Sep","status":"blocked","why":"Waiting on the month before"},{"month":"Oct","status":"blocked","why":"Ledger does not match the cost records"},{"month":"Nov","status":"blocked","why":"Ledger does not match the cost records"},{"month":"Dec","status":"blocked","why":"Waiting on the month before"}],"three_way":{"total":12076,"clean":10895,"exceptions":[{"label":"Invoice has no PO number","count":219,"amount":20222157.31},{"label":"Receipt waiting on an invoice that has no PO number","count":205,"amount":19241467.12},{"label":"Supplier sent the same invoice twice","count":176,"amount":17514579.28},{"label":"Invoiced but never received","count":62,"amount":5336236.68},{"label":"Invoice price more than 5% off the PO","count":363,"amount":1871215.65},{"label":"Invoiced quantity differs from received","count":156,"amount":1520551.04}]},"inventory":[{"plant":"Austin","shrink":313373.97,"counts":316},{"plant":"Fremont","shrink":177584.09,"counts":338},{"plant":"Reno","shrink":106387.76,"counts":263}],"quality":{"tests":108,"passed":101,"warned":7,"failed":0,"rows":351860,"rejects":111,"dupes":176,"grams":1165,"late":474},"repo":null};
+const $ = (s, el = document) => el.querySelector(s);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const money = (v, d = 1) => { const a = Math.abs(v), s = v < 0 ? "−" : "";
+  return a >= 1e9 ? `${s}$${(a/1e9).toFixed(2)}B` : a >= 1e6 ? `${s}$${(a/1e6).toFixed(d)}M` : a >= 1e3 ? `${s}$${(a/1e3).toFixed(d)}K` : `${s}$${a.toFixed(0)}`; };
+const pct = (v, d = 1) => `${(v*100).toFixed(d)}%`;
+const spct = (v, d = 1) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(v*100).toFixed(d)}%`;
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const NS = "http://www.w3.org/2000/svg";
+function svgEl(tag, attrs, parent) { const e = document.createElementNS(NS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; }
+
+/* tooltip */
+const tip = $("#tip");
+function showTip(html, ev) { tip.innerHTML = html; tip.hidden = false; moveTip(ev); }
+function moveTip(ev) { const pad = 14, w = tip.offsetWidth, h = tip.offsetHeight;
+  let x = ev.clientX + pad, y = ev.clientY + pad;
+  if (x + w > innerWidth - 8) x = ev.clientX - w - pad; if (y + h > innerHeight - 8) y = ev.clientY - h - pad;
+  tip.style.left = x + "px"; tip.style.top = y + "px"; }
+function hideTip() { tip.hidden = true; }
+function hover(el, html) { el.addEventListener("pointerenter", e => showTip(html, e));
+  el.addEventListener("pointermove", moveTip); el.addEventListener("pointerleave", hideTip); }
+
+function table(head, rows, rightCols = []) {
+  return `<div class="tbl"><table><thead><tr>${head.map((h, i) => `<th class="${rightCols.includes(i) ? "r" : ""}">${h}</th>`).join("")}</tr></thead>
+  <tbody>${rows.map(r => `<tr>${r.map((c, i) => `<td class="${rightCols.includes(i) ? "r" : ""}">${c}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
+}
+
+/* ------------------------------------------------------------------ page text */
+const K = D.kpi, U = D.usage_line, S = D.supplier, SC = D.scrap, Q = D.quality;
+const topEl = D.elements[0];
+const usageShare = U.amount / K.var;
+const blockedFirst = D.close.find(c => c.status !== "signed_off");
+const signed = D.close.filter(c => c.status === "signed_off").length;
+
+$("#app").innerHTML = `
+<header>
+  <div class="eyebrow">Manufacturing cost review · ${esc(K.from)} – ${esc(K.to)} · 3 plants, 6 production lines</div>
+  <h1>Production cost ${money(K.var)} over standard, and most of it traces to one line</h1>
+  <p class="lede">This report is produced automatically by a data pipeline that pulls production, material, labor, scrap,
+  purchasing and ledger records together, compares what each product <em>should</em> have cost with what it <em>did</em> cost,
+  and checks that the accounting books agree with the factory records before a month can be closed.</p>
+  <p class="note">All data is synthetic, generated for this portfolio project with known problems planted in it, so you can check
+  that the pipeline finds each one. Plants, suppliers and products are fictional. Report built ${esc(D.generated)}.</p>
+</header>
+
+<div class="kpis" role="group" aria-label="Headline figures">
+  <div class="kpi"><span class="l">Planned (standard) cost</span><span class="v">${money(K.std, 2)}</span></div>
+  <div class="kpi"><span class="l">Actual cost</span><span class="v">${money(K.act, 2)}</span></div>
+  <div class="kpi hl"><span class="l">Over plan</span><span class="v">${money(K.var)} <small style="font-size:14px">(${spct(K.pct, 2)})</small></span></div>
+  <div class="kpi"><span class="l">Units built (${K.orders.toLocaleString()} orders)</span><span class="v">${(K.units/1000).toFixed(0)}K</span></div>
+</div>
+
+<div class="summary">
+  <h2>What to take away</h2>
+  <ul>
+    <li><span class="mk">→</span><span><b>${esc(U.line)} used ${pct(U.pct)} more material than its products need, every month of the year.</b>
+      That is ${money(U.amount)}, or ${pct(usageShare, 0)} of the whole overrun. Every other line is within a rounding error of plan.</span></li>
+    <li><span class="mk">→</span><span><b>Supplier ${esc(S.name)} raised prices about ${Math.round(S.after - S.before)}% in ${S.month}</b> and kept them there,
+      adding ${money(S.extra_cost)} over standard by year end.</span></li>
+    <li><span class="mk">→</span><span><b>Scrap on ${esc(SC.line)} tripled in ${SC.months.join(" and ")}</b> (${pct(SC.peak)} of material vs. ${pct(SC.normal)} normally),
+      ${pct(SC.reason_share, 0)} of it logged as ${esc(SC.reason)}.</span></li>
+    <li><span class="mk">→</span><span><b>The general ledger disagreed with the factory records in ${D.breaks.length} places.</b> The pipeline found every one,
+      named the cause, and stopped ${esc(blockedFirst ? blockedFirst.month : "")} from being closed until they were fixed.</span></li>
+    <li><span class="mk">→</span><span><b>The numbers can be trusted:</b> ${Q.passed + Q.warned} of ${Q.tests} automated checks pass, and work-in-progress
+      balances tie to the cent for all ${D.wip.total} plant-months.</span></li>
+  </ul>
+</div>
+
+<section class="finding" id="drivers">
+  <div class="eyebrow">1 · Where the overrun came from</div>
+  <h2>${pct(topEl.amount / K.var, 0)} of the extra cost is material used beyond what the bill of materials allows</h2>
+  <p class="read">Every finished order is compared with its standard cost: the materials its bill of materials lists, at planned prices,
+  plus planned labor hours. The difference is split into six causes, and the six add up exactly to the total overrun.</p>
+  <div class="figure"><div class="chart" id="c-elements"></div>
+    <p class="howto">Each bar is extra cost against plan for the year. Hover a bar for what it means.</p>
+    <details><summary>Show as a table</summary>${table(["Cause", "What happened", "Over plan"],
+      D.elements.map(e => [esc(e.label), esc(e.meaning), money(e.amount, 2)]), [2])}</details>
+  </div>
+</section>
+
+<section class="finding" id="lines">
+  <div class="eyebrow">2 · Which production line</div>
+  <h2>${esc(U.line)} ran ${pct(U.pct)} over on material for ${U.months_over} months straight</h2>
+  <p class="read">Each square is one production line in one month, colored by how much more (red) or less (blue) material it used than
+  standard. A one-off bad week would show as a single red square. A full red row means the problem is built into the process.</p>
+  <div class="figure">
+    <div class="legend"><span><i class="sw box" style="background:var(--under)"></i>Less material than plan</span>
+      <span><i class="sw box" style="background:var(--mid);outline:1px solid var(--rule)"></i>On plan</span>
+      <span><i class="sw box" style="background:var(--over)"></i>More material than plan</span></div>
+    <div class="chart" id="c-heat"></div>
+    <details><summary>Show as a table</summary>${table(["Line", "Month", "Material over plan", "% of standard"],
+      D.heat.map(h => [esc(h.line), h.month, money(h.amount), spct(h.pct, 2)]), [2, 3])}</details>
+  </div>
+  <p class="action"><b>Next step:</b> walk ${esc(U.line)} with process engineering and check its kitting quantities and machine settings
+  against the bill of materials. The other five lines show it can be built to standard.</p>
+</section>
+
+<section class="finding" id="supplier">
+  <div class="eyebrow">3 · Purchase prices</div>
+  <h2>${esc(S.name)} raised prices in ${S.month}, from ${Math.round(S.before)} to ${Math.round(S.after)} on a 100 = standard scale</h2>
+  <p class="read">Each line is a supplier's average invoice price compared with the standard price, where 100 means exactly on standard.
+  Most suppliers drift a point or two. One jumps and stays up.</p>
+  <div class="figure">
+    <div class="legend"><span><i class="sw" style="background:var(--over)"></i>${esc(S.name)}</span>
+      <span><i class="sw" style="background:var(--context)"></i>The other ${new Set(S.series.map(s => s.supplier)).size - 1} suppliers</span></div>
+    <div class="chart" id="c-supplier"></div>
+    <details><summary>Show as a table</summary>${table(["Month", esc(S.name), "Other suppliers (average)"],
+      MONTHS.map(m => { const own = S.series.find(s => s.supplier === S.id && s.month === m);
+        const oth = S.series.filter(s => s.supplier !== S.id && s.month === m);
+        return [m, own ? own.index.toFixed(1) : "–", oth.length ? (oth.reduce((a, b) => a + b.index, 0) / oth.length).toFixed(1) : "–"]; }), [1, 2])}</details>
+  </div>
+  <p class="action"><b>Next step:</b> procurement to check whether the increase was agreed in the contract. If it wasn't, the
+  ${money(S.extra_cost)} is recoverable; if it was, next year's standard price should include it.</p>
+</section>
+
+<section class="finding" id="scrap">
+  <div class="eyebrow">4 · Scrap</div>
+  <h2>Scrap on ${esc(SC.line)} tripled in ${SC.months.join(" and ")}, mostly from machine faults</h2>
+  <p class="read">Scrap rate is the value of material thrown away as a share of material issued to the line. Every line runs near
+  ${pct(SC.normal)}. The spike lasted two months and then returned to normal, which points to an equipment problem that was fixed.</p>
+  <div class="figure">
+    <div class="legend"><span><i class="sw" style="background:var(--over)"></i>${esc(SC.highlight)}</span>
+      <span><i class="sw" style="background:var(--context)"></i>Other lines</span></div>
+    <div class="chart" id="c-scrap"></div>
+    <details><summary>Show as a table</summary>${table(["Line", "Month", "Scrap rate"],
+      SC.series.map(s => [esc(s.line), s.month, pct(s.rate, 2)]), [2])}</details>
+  </div>
+</section>
+
+<section class="finding" id="close">
+  <div class="eyebrow">5 · Do the books agree?</div>
+  <h2>The ledger and the factory records disagreed ${D.breaks.length} times, and the pipeline caught all of them</h2>
+  <p class="read">Every factory transaction (material issued, labor booked, goods shipped) should appear in the general ledger, the
+  company's official books. The pipeline rebuilds what the ledger <em>should</em> say from the factory records, compares the two
+  day by day, and names the cause of each difference.</p>
+  <div class="figure">
+    ${table(["When", "Plant", "What went wrong", "Amount"],
+      D.breaks.map(b => [b.month, esc(b.plants), `<b>${esc(b.cause)}.</b> ${esc(b.what)}`, money(b.amount, 2)]), [3])}
+    <p class="howto">Apart from these ${D.breaks.length}, every account at every plant matches to the cent for the whole year.</p>
+  </div>
+  <h3 style="margin-top:12px">Month-end close: a month can only be signed off when its books agree</h3>
+  <div class="figure">
+    <div class="months">${D.close.map(c => {
+      const cls = c.status === "signed_off" ? "ok" : c.why.startsWith("Waiting") ? "wait" : "bad";
+      const ic = cls === "ok" ? "✓" : cls === "wait" ? "…" : "✕";
+      const label = cls === "ok" ? "Closed" : cls === "wait" ? "Waiting" : "Blocked";
+      return `<div class="m ${cls}" data-why="${esc(c.why)}" data-month="${c.month}" data-label="${label}"><span class="ic" aria-hidden="true">${ic}</span>
+        <span>${c.month}</span><span style="font-size:11px">${label}</span></div>`; }).join("")}</div>
+    <div class="statuskey"><span>✓ Closed: books agree</span><span>✕ Blocked: a difference above $1,000</span><span>… Waiting: months close in order</span></div>
+  </div>
+  <p class="action"><b>What happens next:</b> the pipeline drafts ${D.corrections} correcting journal entries for an accountant to review.
+  Once they are posted and the data reloads, all 12 months close. A closed month is locked and can never be rewritten.</p>
+</section>
+
+<section class="finding" id="paperwork">
+  <div class="eyebrow">6 · Purchasing paperwork and inventory</div>
+  <h2>${pct(D.three_way.clean / D.three_way.total, 0)} of purchase orders match their receipt and invoice; the rest are listed for follow-up</h2>
+  <p class="read">For every purchase the pipeline checks three documents against each other: what was ordered, what arrived at the dock,
+  and what the supplier billed. Mismatches mean money at risk of being paid twice or paid for goods never received.</p>
+  <div class="figure"><div class="chart" id="c-match"></div>
+    <p class="howto">Value of documents in each exception group. Hover for the count.</p>
+    <details><summary>Show as a table</summary>${table(["Exception", "Documents", "Value"],
+      D.three_way.exceptions.map(e => [esc(e.label), e.count.toLocaleString(), money(e.amount, 2)]), [1, 2])}</details>
+  </div>
+  <div class="pair">
+    <div class="figure"><div class="eyebrow">Inventory shrink, from physical counts</div>
+      ${table(["Plant", "Counts taken", "Missing stock"], D.inventory.map(i => [esc(i.plant), i.counts, money(i.shrink)]), [1, 2])}
+      <p class="howto">Value of stock the ERP said was there but the count did not find.</p></div>
+    <div class="figure"><div class="eyebrow">Work-in-progress check</div>
+      <div class="stat">${D.wip.ties} / ${D.wip.total}</div>
+      <p class="howto">Plant-months where opening balance + material + labor + overhead − finished goods − scrap equals the closing
+      balance of open orders, to the cent.</p></div>
+  </div>
+</section>
+
+<section class="finding" id="quality">
+  <div class="eyebrow">7 · Can you trust the data?</div>
+  <h2>Bad records are caught on the way in and counted, never silently dropped</h2>
+  <div class="figure">
+    ${table(["Check", "Result"], [
+      ["Source records loaded", Q.rows.toLocaleString()],
+      ["Rejected at load (e.g. negative quantities, 30-hour shifts)", Q.rejects.toLocaleString()],
+      ["Duplicate supplier invoices flagged, not paid twice", Q.dupes.toLocaleString()],
+      ["Material issues entered in grams, converted to kilograms", Q.grams.toLocaleString()],
+      ["Late labor bookings moved into the open month", Q.late.toLocaleString()],
+      ["Automated checks passing (warnings are the known problems above)", `${Q.passed} pass · ${Q.warned} warn · ${Q.failed} fail`],
+    ], [1])}
+  </div>
+</section>
+
+<section class="glossary">
+  <h2>Terms used</h2>
+  <dl>
+    <dt>Standard cost</dt><dd>What a product should cost: the materials on its bill of materials at planned prices, plus planned labor and overhead.</dd>
+    <dt>Variance</dt><dd>Actual cost minus standard cost. Positive means it cost more than planned.</dd>
+    <dt>Bill of materials</dt><dd>The recipe for a product: which parts and how much of each, including a small planned scrap allowance.</dd>
+    <dt>General ledger</dt><dd>The company's official accounting books, which the financial statements are built from.</dd>
+    <dt>Work in progress</dt><dd>The value of materials and labor in products that are started but not finished.</dd>
+    <dt>Month-end close</dt><dd>Checking and locking a month's numbers so they can be reported. Closed months cannot change.</dd>
+    <dt>Three-way match</dt><dd>Checking that the purchase order, the goods receipt and the supplier invoice agree before paying.</dd>
+  </dl>
+</section>
+
+<footer>
+  <span>Built with Python, SQL, PostgreSQL, dbt, Airflow, Docker and Kubernetes. Every figure comes from the pipeline's output tables.</span>
+  ${D.repo ? `<span>Source code: <a href="${esc(D.repo)}">${esc(D.repo.replace(/^https?:\/\//, ""))}</a></span>` : ""}
+</footer>`;
+
+/* ------------------------------------------------------------------ charts */
+function hbars(el, rows, opts) {
+  // labels sit beside the bars when there is room, above them when labels are long or the screen is narrow
+  const W = el.clientWidth, above = opts.labelAbove || W < 520;
+  const labelW = above ? 0 : Math.min(190, W * 0.38), valW = 70, bh = 22, gap = 12, lh = above ? 20 : 0;
+  const H = rows.length * (bh + gap + lh);
+  el.innerHTML = ""; const s = svgEl("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": opts.aria }, el);
+  const max = Math.max(...rows.map(r => r.v)), x = v => (v / max) * (W - labelW - valW);
+  rows.forEach((r, i) => {
+    const y = i * (bh + gap + lh) + lh;
+    svgEl("text", { x: 0, y: above ? y - 6 : y + bh / 2 + 4, class: "lab" }, s).textContent = r.label;
+    const w = Math.max(2, x(r.v));
+    const b = svgEl("rect", { x: labelW, y, width: w, height: bh, rx: 3, fill: css(opts.color) }, s);
+    svgEl("text", { x: labelW + w + 8, y: y + bh / 2 + 4, class: "val" }, s).textContent = r.text;
+    const hit = svgEl("rect", { x: 0, y: y - lh - gap / 2, width: W, height: bh + gap + lh, fill: "transparent" }, s);
+    hover(hit, r.tip);
+    hit.addEventListener("pointerenter", () => b.style.opacity = .75); hit.addEventListener("pointerleave", () => b.style.opacity = 1);
+  });
+}
+
+function heatColor(v, lim) {
+  const t = Math.max(-1, Math.min(1, v / lim)), mid = css("--mid");
+  const to = css(t >= 0 ? "--over" : "--under");
+  return mix(mid, to, Math.pow(Math.abs(t), 0.7));
+}
+function hex(c) { c = c.replace("#", ""); return [0, 2, 4].map(i => parseInt(c.slice(i, i + 2), 16)); }
+function mix(a, b, t) { const A = hex(a), B = hex(b); return "rgb(" + A.map((v, i) => Math.round(v + (B[i] - v) * t)).join(",") + ")"; }
+
+function heatmap(el) {
+  const W = el.clientWidth, labelW = Math.min(120, W * 0.26), top = 20, ch = 30, gap = 2;
+  const cw = (W - labelW) / 12, H = top + D.lines.length * (ch + gap);
+  el.innerHTML = ""; const s = svgEl("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Material usage over plan by line and month" }, el);
+  MONTHS.forEach((m, j) => { const t = svgEl("text", { x: labelW + j * cw + cw / 2, y: 12, "text-anchor": "middle" }, s); t.textContent = cw < 34 ? m[0] : m; });
+  D.lines.forEach((ln, i) => {
+    const y = top + i * (ch + gap);
+    svgEl("text", { x: 0, y: y + ch / 2 + 4, class: "lab" }, s).textContent = W < 520 ? ln.replace(" line ", " ") : ln;
+    MONTHS.forEach((m, j) => {
+      const c = D.heat.find(h => h.line === ln && h.month === m); if (!c) return;
+      const r = svgEl("rect", { x: labelW + j * cw + gap / 2, y, width: cw - gap, height: ch, rx: 2, fill: heatColor(c.pct, 0.06) }, s);
+      if (Math.abs(c.pct) >= 0.01 && cw >= 34) { const t = svgEl("text", { x: labelW + j * cw + cw / 2, y: y + ch / 2 + 4, "text-anchor": "middle" }, s);
+        t.textContent = spct(c.pct, 1); t.style.fill = "#fff"; t.style.pointerEvents = "none"; }
+      hover(r, `${esc(ln)} · ${m}<br>Material vs plan: <b>${spct(c.pct, 2)}</b><br>Extra cost: <b>${money(c.amount)}</b>`);
+    });
+  });
+}
+
+function lines(el, series, opts) {
+  // series: [{key, highlight, points:[{m, v}]}]
+  const W = el.clientWidth, H = Math.round(Math.min(300, Math.max(220, W * 0.42))), l = 44, r = 64, t = 10, b = 26;
+  const vals = series.flatMap(s => s.points.map(p => p.v)), lo = Math.min(opts.min ?? Infinity, ...vals), hi = Math.max(...vals);
+  const pad = (hi - lo) * 0.08, y0 = opts.min === 0 ? 0 : lo - pad, y1 = hi + pad;
+  const x = j => l + (j / 11) * (W - l - r), y = v => t + (1 - (v - y0) / (y1 - y0)) * (H - t - b);
+  el.innerHTML = ""; const s = svgEl("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": opts.aria }, el);
+  const ticks = 4; for (let i = 0; i <= ticks; i++) { const v = y0 + (i / ticks) * (y1 - y0);
+    svgEl("line", { x1: l, x2: W - r, y1: y(v), y2: y(v), stroke: css("--grid") }, s);
+    svgEl("text", { x: l - 8, y: y(v) + 4, "text-anchor": "end" }, s).textContent = opts.fmt(v); }
+  MONTHS.forEach((m, j) => { if (W < 480 && j % 2) return; svgEl("text", { x: x(j), y: H - 6, "text-anchor": "middle" }, s).textContent = m; });
+  if (opts.ref != null) { svgEl("line", { x1: l, x2: W - r, y1: y(opts.ref), y2: y(opts.ref), stroke: css("--ink-3"), "stroke-dasharray": "3 3" }, s);
+    svgEl("text", { x: W - r + 6, y: y(opts.ref) + 4 }, s).textContent = opts.refLabel; }
+  const path = pts => pts.map((p, k) => `${k ? "L" : "M"}${x(MONTHS.indexOf(p.m)).toFixed(1)},${y(p.v).toFixed(1)}`).join("");
+  series.filter(z => !z.highlight).forEach(z => svgEl("path", { d: path(z.points), fill: "none", stroke: css("--context"), "stroke-width": 1.25 }, s));
+  const hl = series.find(z => z.highlight);
+  svgEl("path", { d: path(hl.points), fill: "none", stroke: css("--over"), "stroke-width": 2.5, "stroke-linejoin": "round" }, s);
+  const last = hl.points[hl.points.length - 1];
+  svgEl("circle", { cx: x(MONTHS.indexOf(last.m)), cy: y(last.v), r: 4, fill: css("--over"), stroke: css("--paper"), "stroke-width": 2 }, s);
+  svgEl("text", { x: x(MONTHS.indexOf(last.m)) + 8, y: y(last.v) + 4, class: "val" }, s).textContent = opts.fmt(last.v);
+  // crosshair
+  const cross = svgEl("line", { y1: t, y2: H - b, stroke: css("--ink-3"), visibility: "hidden" }, s);
+  const dot = svgEl("circle", { r: 5, fill: css("--over"), stroke: css("--paper"), "stroke-width": 2, visibility: "hidden" }, s);
+  const hit = svgEl("rect", { x: l, y: t, width: W - l - r, height: H - t - b, fill: "transparent" }, s);
+  hit.addEventListener("pointermove", ev => {
+    const bb = s.getBoundingClientRect(), px = (ev.clientX - bb.left) * (W / bb.width);
+    const j = Math.max(0, Math.min(11, Math.round((px - l) / (W - l - r) * 11))), m = MONTHS[j];
+    const p = hl.points.find(q => q.m === m); if (!p) return;
+    const others = series.filter(z => !z.highlight).map(z => z.points.find(q => q.m === m)).filter(Boolean).map(q => q.v);
+    const avg = others.reduce((a, b) => a + b, 0) / (others.length || 1);
+    cross.setAttribute("x1", x(j)); cross.setAttribute("x2", x(j)); cross.setAttribute("visibility", "visible");
+    dot.setAttribute("cx", x(j)); dot.setAttribute("cy", y(p.v)); dot.setAttribute("visibility", "visible");
+    showTip(`${m}<br>${esc(hl.key)}: <b>${opts.fmt(p.v)}</b><br>${opts.othersLabel}: <b>${opts.fmt(avg)}</b>`, ev);
+  });
+  hit.addEventListener("pointerleave", () => { cross.setAttribute("visibility", "hidden"); dot.setAttribute("visibility", "hidden"); hideTip(); });
+}
+
+function groupSeries(rows, keyF, valF, hlKey, labelF) {
+  const m = new Map(); rows.forEach(r => { const k = keyF(r); if (!m.has(k)) m.set(k, []); m.get(k).push({ m: r.month, v: valF(r) }); });
+  return [...m].map(([k, pts]) => ({ key: labelF ? labelF(k) : k, highlight: k === hlKey, points: pts }));
+}
+
+function drawAll() {
+  hbars($("#c-elements"), D.elements.map(e => ({ label: e.label, v: e.amount, text: money(e.amount),
+    tip: `<b>${money(e.amount, 2)}</b> over plan<br>${esc(e.meaning)}` })), { color: "--over", aria: "Extra cost by cause" });
+  heatmap($("#c-heat"));
+  lines($("#c-supplier"), groupSeries(S.series, r => r.supplier, r => r.index, S.id, k => k === S.id ? S.name : k),
+    { fmt: v => v.toFixed(0), ref: 100, refLabel: "standard", othersLabel: "Other suppliers, average", aria: "Supplier price index by month" });
+  lines($("#c-scrap"), groupSeries(SC.series, r => r.line, r => r.rate, SC.highlight), { fmt: v => pct(v, 1), min: 0,
+    othersLabel: "Other lines, average", aria: "Scrap rate by line and month" });
+  const ex = D.three_way.exceptions.filter(e => !e.label.startsWith("Receipt waiting"));
+  hbars($("#c-match"), ex.map(e => ({ label: e.label, v: e.amount, text: money(e.amount),
+    tip: `<b>${e.count.toLocaleString()}</b> documents · <b>${money(e.amount, 2)}</b>` })), { color: "--accent", labelAbove: true, aria: "Purchase document exceptions by value" });
+}
+document.querySelectorAll(".m").forEach(m => hover(m, `${m.dataset.month}: <b>${m.dataset.label}</b>${m.dataset.why ? "<br>" + esc(m.dataset.why) : ""}`));
+drawAll();
+let rt, lastW = $("#app").clientWidth;
+new ResizeObserver(() => { const w = $("#app").clientWidth; if (w === lastW) return; lastW = w;
+  clearTimeout(rt); rt = setTimeout(drawAll, 120); }).observe($("#app"));
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", drawAll);
+new MutationObserver(drawAll).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+</script>
+
+</body>
+</html>

@@ -1,0 +1,34 @@
+# One-off Job: generate the synthetic source extracts into the source bucket.
+#   kubectl -n mci apply -f k8s/jobs/seed-job.yaml && kubectl -n mci logs -f job/mci-seed
+# Change --scale for bigger runs (50 ~= 10M material issue lines; raise the memory limit).
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: mci-seed
+  namespace: mci
+  labels:
+    app.kubernetes.io/part-of: mci
+spec:
+  backoffLimit: 1
+  ttlSecondsAfterFinished: 3600
+  template:
+    spec:
+      serviceAccountName: mci-runner
+      restartPolicy: Never
+      containers:
+        - name: generator
+          image: mci-generator:0.1.0
+          imagePullPolicy: IfNotPresent
+          args: ["--start", "2025-01-01", "--months", "12", "--scale", "1.0", "--seed", "42", "--out", "s3://mci-source"]
+          envFrom:
+            - configMapRef:
+                name: mci-config
+            - secretRef:
+                name: mci-secrets
+          resources:
+            requests: {cpu: 500m, memory: 1Gi}
+            limits: {cpu: "2", memory: 6Gi}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            allowPrivilegeEscalation: false

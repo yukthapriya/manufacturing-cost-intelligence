@@ -1,0 +1,56 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  namespace: mci
+spec:
+  template:
+    spec:
+      containers:
+        - name: postgres
+          resources:
+            requests: {cpu: 100m, memory: 256Mi}
+            limits: {cpu: 500m, memory: 768Mi}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 2Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: minio
+  namespace: mci
+spec:
+  template:
+    spec:
+      containers:
+        - name: minio
+          resources:
+            requests: {cpu: 50m, memory: 128Mi}
+            limits: {cpu: 250m, memory: 512Mi}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: minio-data
+  namespace: mci
+spec:
+  resources:
+    requests:
+      storage: 2Gi
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: mci-defaults
+  namespace: mci
+spec:
+  limits:
+    - type: Container
+      defaultRequest: {cpu: 100m, memory: 256Mi}
+      default: {cpu: 500m, memory: 1Gi}

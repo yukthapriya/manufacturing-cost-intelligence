@@ -1,0 +1,3 @@
+je_id,je_line,je_date,period_id,plant_id,account,debit,credit,source_type,description,posted_at
+JC202508-20261021040249-5ea489-000,1,2025-08-13,2025-08,AUS1,1400,11728.47,0.0,LABOR,Correction: misposted plant,2026-10-21 04:02:49
+JC202508-20261021040249-5ea489-000,2,2025-08-13,2025-08,RNO1,1400,0.0,11728.47,LABOR,Correction: misposted plant,2026-10-21 04:02:49

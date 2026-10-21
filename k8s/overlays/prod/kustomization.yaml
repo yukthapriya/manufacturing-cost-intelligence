@@ -1,0 +1,96 @@
+# Prod (EKS): managed services instead of in-cluster state.
+#  - Warehouse  -> Amazon RDS for PostgreSQL (infra/terraform, create_rds=true)
+#  - Storage    -> Amazon S3 via IRSA (no static keys; S3_ENDPOINT_URL empty)
+#  - Postgres StatefulSet, MinIO and their NetworkPolicies are removed.
+#
+#   kubectl apply -k k8s/overlays/prod
+#
+# Replace every <PLACEHOLDER> before applying.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../base
+
+patches:
+  # --- remove in-cluster Postgres ----------------------------------------
+  - target: {kind: StatefulSet, name: postgres}
+    patch: |-
+      $patch: delete
+      apiVersion: apps/v1
+      kind: StatefulSet
+      metadata:
+        name: postgres
+  - target: {kind: Service, name: postgres-headless}
+    patch: |-
+      $patch: delete
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: postgres-headless
+  - target: {kind: NetworkPolicy, name: postgres-ingress}
+    patch: |-
+      $patch: delete
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: postgres-ingress
+  # Keep a Service named `postgres` (contract) but make it an ExternalName
+  # alias to RDS, so anything using the short name still resolves.
+  - target: {kind: Service, name: postgres}
+    patch: |-
+      - op: replace
+        path: /spec
+        value:
+          type: ExternalName
+          externalName: <RDS_ENDPOINT_HOSTNAME>
+  # --- remove MinIO --------------------------------------------------------
+  - target: {kind: Deployment, name: minio}
+    patch: |-
+      $patch: delete
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: minio
+  - target: {kind: Service, name: minio}
+    patch: |-
+      $patch: delete
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: minio
+  - target: {kind: PersistentVolumeClaim, name: minio-data}
+    patch: |-
+      $patch: delete
+      apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: minio-data
+  - target: {kind: Job, name: minio-create-buckets}
+    patch: |-
+      $patch: delete
+      apiVersion: batch/v1
+      kind: Job
+      metadata:
+        name: minio-create-buckets
+  - target: {kind: NetworkPolicy, name: minio-ingress}
+    patch: |-
+      $patch: delete
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: minio-ingress
+  # --- config, identity, sizing -------------------------------------------
+  - path: configmap-patch.yaml
+  - path: serviceaccount-irsa.yaml
+  - path: limitrange-large.yaml
+
+# Prod secrets come from a separate gitignored file (only WAREHOUSE_PASSWORD
+# and SLACK_WEBHOOK_URL are needed; leave AWS_* empty -- IRSA supplies creds).
+secretGenerator:
+  - name: mci-secrets
+    behavior: replace
+    envs:
+      - secrets.env
+    options:
+      disableNameSuffixHash: true

@@ -1,0 +1,40 @@
+version: 2
+
+sources:
+  - name: raw
+    description: >
+      Append-only landing tables loaded by `ingestion.load`. Every row carries
+      _batch_id, _source_file and _loaded_at. Rows that failed validation are in raw.rejects.
+    schema: raw
+    tables:
+      - name: plants
+      - name: production_lines
+      - name: suppliers
+      - name: materials
+      - name: products
+      - name: subassemblies
+      - name: bom
+      - name: standard_costs
+      - name: uom_conversions
+      - name: gl_accounts
+      - name: fiscal_calendar
+      - name: production_orders
+        description: CDC-style extract, one RELEASED and (later) one COMPLETED event per order.
+      - name: material_issues
+        description: Goods issues to production orders (monthly range partitions on issue_date).
+      - name: labor_entries
+        description: Time bookings against orders (monthly range partitions on posting_date).
+      - name: scrap_records
+      - name: shipments
+      - name: opening_inventory
+      - name: purchase_order_lines
+      - name: goods_receipts
+      - name: invoice_lines
+        description: Supplier invoice lines from the AP scanning feed. Contains resubmitted duplicates.
+      - name: inventory_snapshots
+        description: ERP month-end on-hand quantity by plant and material.
+      - name: cycle_counts
+      - name: gl_journal_entries
+        description: General ledger, summarised per day, plant, source type and account.
+      - name: rejects
+        description: Rows rejected at load time with the reason.

@@ -1,0 +1,95 @@
+version: 2
+models:
+- name: recon_gl_daily
+  description: Day-grain subledger vs. GL breaks with root-cause tags.
+  columns:
+  - name: root_cause
+    data_tests:
+    - accepted_values:
+        arguments:
+          values:
+          - misposted_plant
+          - timing_cutoff
+          - duplicate_gl_posting
+          - missing_gl_posting
+          - gl_without_subledger
+          - unexplained
+- name: recon_subledger_to_gl
+  description: Period x plant x account x source reconciliation with status, aging bucket and root cause.
+  columns:
+  - name: recon_id
+    data_tests:
+    - unique
+    - not_null
+  - name: status
+    data_tests:
+    - accepted_values:
+        arguments:
+          values:
+          - matched
+          - within_tolerance
+          - exception
+  data_tests:
+  - no_rows_where:
+      name: recon_warn_subledger_to_gl_exceptions
+      config:
+        severity: warn
+      arguments:
+        condition: status = 'exception'
+  - no_rows_where:
+      name: recon_no_unexplained_gl_breaks
+      arguments:
+        condition: root_cause = 'unexplained' and is_material
+- name: recon_inventory_balance
+  description: Month-end inventory balance per subledger vs. GL, with an independent valuation.
+  columns:
+  - name: balance_id
+    data_tests:
+    - unique
+    - not_null
+  data_tests:
+  - expression_is_true:
+      name: raw_material_valuation_within_rounding
+      arguments:
+        expression: abs(valuation_vs_subledger_diff) <= 50
+        where: account = '1300'
+  - expression_is_true:
+      name: wip_valuation_equals_subledger
+      arguments:
+        expression: abs(valuation_vs_subledger_diff) < 0.01
+        where: account = '1400'
+- name: recon_wip_rollforward
+  description: 'beginning + issued + labor + overhead - completions - scrap - settlement = ending, checked against
+    the sum of open-order balances and the GL WIP account.
+
+    '
+  columns:
+  - name: rollforward_id
+    data_tests:
+    - unique
+    - not_null
+  - name: ties_out
+    description: Critical control. Every plant and period must tie to the cent.
+    data_tests:
+    - accepted_values:
+        arguments:
+          values:
+          - true
+          quote: false
+- name: recon_three_way_match
+  description: PO vs. receipt vs. invoice, with status, root cause, amount at risk and aging.
+  columns:
+  - name: match_id
+    data_tests:
+    - unique
+    - not_null
+  - name: status
+    data_tests:
+    - accepted_values:
+        arguments:
+          values:
+          - matched
+          - within_tolerance
+          - exception
+- name: recon_exceptions
+  description: Unified open-exception queue for period close. is_critical exceptions block sign-off.
