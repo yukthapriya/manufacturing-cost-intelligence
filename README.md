@@ -12,8 +12,8 @@ unified standard cost model, then answers three questions:
 
 > **Start here: [the cost review](docs/index.html).** It's a one-page, plain-English report of what the
 > pipeline found, with no setup needed. Turn on GitHub Pages (Settings → Pages → branch `main`, folder `/docs`)
-> and it is live at `https://<your-user>.github.io/<repo>/`. Regenerate it any time with
-> `python -m exporter.static_report --repo-url https://github.com/<your-user>/<repo>`.
+> and it is live at `https://yukthapriya.github.io/manufacturing-cost-intelligence/`. Regenerate it any time with
+> `python -m exporter.static_report --repo-url https://github.com/yukthapriya/manufacturing-cost-intelligence`.
 
 ---
 
