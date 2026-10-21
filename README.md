@@ -1,19 +1,52 @@
 # Manufacturing Cost Intelligence Platform
 
-A production-style data platform for manufacturing accounting. It ingests and reconciles
-production orders, bill of materials, supplier invoices, inventory, labor and scrap into a
-unified standard cost model, then answers three questions:
-
-- **What did it really cost to build each unit?** Actual vs. standard, decomposed into material price, usage, scrap, labor rate, labor efficiency and overhead.
-- **Do the numbers tie?** Subledger-to-GL, three-way match, WIP roll-forward and inventory reconciliations, each break tagged with a root cause.
-- **Can the period be signed off?** A month-end close gate, period locking, immutable close snapshots and a close package.
+**Live report:** https://yukthapriya.github.io/manufacturing-cost-intelligence/ is a one-page, plain-English summary of what the pipeline found, with no setup needed.
 
 **Stack:** Python · SQL · PostgreSQL · dbt · Airflow (or Argo Workflows) · Docker · Kubernetes (kind + Kustomize + Helm) · AWS S3 (MinIO locally) · Terraform · Tableau · GitHub Actions
 
-> **Start here: [the cost review](docs/index.html).** It's a one-page, plain-English report of what the
-> pipeline found, with no setup needed. Turn on GitHub Pages (Settings → Pages → branch `main`, folder `/docs`)
-> and it is live at `https://yukthapriya.github.io/manufacturing-cost-intelligence/`. Regenerate it any time with
-> `python -m exporter.static_report --repo-url https://github.com/yukthapriya/manufacturing-cost-intelligence`.
+## In short
+
+This pipeline answers the question a manufacturing accounting team works on every month: **what did it really cost to build each unit, and do the books agree with the factory floor?** It takes production, material, labor, scrap, purchasing, inventory and general ledger records and compares what each product *should* have cost with what it *did* cost. It splits the difference into clear causes and checks that the ledger ties to the factory records before a month can be closed.
+
+On a year of data it traced a **$26.6M overrun** mainly to one production line. It also found **every ledger error planted in the data**, named the cause of each, and blocked the month-end close until they were fixed.
+
+## What this project does
+
+It works the way a month-end cost system does. Every unit built generates thousands of cost transactions: parts pulled from inventory, hours booked by operators, scrap, purchases and shipments. The pipeline collects them every day, cleans them, and produces three things:
+
+1. **The true cost of every production order**, compared with its standard cost.
+2. **An explanation of every difference**, broken into material price, material usage, scrap, labor rate, labor efficiency and overhead. The six pieces add up exactly to the total, so nothing is left unexplained.
+3. **Proof that the numbers tie**, checked before a month is signed off and locked. The ledger, inventory, work in progress and purchase documents are each checked against the factory records.
+
+## The data
+
+The data is **synthetic**. Real manufacturing cost data is confidential, so I generated a realistic dataset modeled on how an ERP, a manufacturing execution system (MES) and an accounts-payable system record transactions.
+
+| Dataset | Volume (one year) | What it represents |
+|---|---|---|
+| Plants, lines, products, materials, suppliers | 3 plants, 6 lines, 40 products, 300 materials, 25 suppliers | Master data |
+| Bill of materials | Multi-level, with scrap allowances | What each product should consume |
+| Standard costs | Effective-dated versions | Planned material prices, labor and overhead rates, labor hours |
+| Production orders | ~9,000 | Planned vs. completed quantities |
+| Material issues | ~190,000 | Parts pulled from inventory into production |
+| Labor entries | ~33,000 | Operator time bookings, including overtime and late postings |
+| Scrap records | ~38,000 | Material scrapped, with reason codes |
+| Purchase orders, goods receipts, supplier invoices | ~12,000 each | The purchasing trail |
+| Inventory snapshots and cycle counts | Monthly | System stock vs. physical counts |
+| General ledger | Daily journal entries | Inventory, work in progress, finished goods, COGS and variance accounts |
+
+The data is deliberately messy, the way real data is: duplicate supplier invoices, quantities entered in grams instead of kilograms, invoices without PO numbers, labor posted weeks late, and negative inventory. Four ledger errors are also planted: a missing posting, a duplicate posting, cost booked to the wrong plant, and a month-end cutoff problem. The pipeline has to find them on its own, and an answer key checks that it did.
+
+## The problems it solves
+
+- **Why did it cost more than planned?** It found one production line using 5.9% more material than the bill of materials allows, every month of the year, which accounts for most of the overrun. It also caught a supplier who raised prices about 21% in July, and a two-month scrap spike on another line that traced to machine faults.
+- **Can the numbers be trusted enough to close the month?** It compares the ledger with the factory records day by day, tags each difference with its cause, and refuses to sign off a month until the books agree. It then drafts the correcting entries for an accountant to review.
+- **Are we paying for the right things?** It matches every purchase order to its receipt and invoice, and flags duplicate invoices, goods billed but never received, and price differences.
+- **Where is the inventory going?** It compares system stock with physical counts and shows the shrink by plant.
+
+## How it's built
+
+Python and SQL for the processing, PostgreSQL as the warehouse, and dbt for the cost models. There are over a hundred automated data checks, plus unit tests that verify the variance math against hand calculations. Airflow schedules the daily load and the month-end close, with each step running in its own container on Kubernetes. The details are below.
 
 ---
 
@@ -211,7 +244,7 @@ app/              Streamlit preview                       docs/        cost mode
 Operations are covered in **[docs/runbook.md](docs/runbook.md)**: rerunning a failed day,
 backfilling a period, investigating a reconciliation break, and a WIP roll-forward that won't tie.
 
-## Resume bullets (matching what is built)
+## Summary of what was built
 
 - Built containerized ETL/ELT pipelines (Python, SQL, dbt, PostgreSQL) orchestrated with Airflow on Kubernetes (KubernetesPodOperator, kind, Helm) and Argo Workflows, ingesting and reconciling production, BOM, supplier invoice, inventory, labor and scrap records from S3 into a unified manufacturing cost model.
 - Developed standard-vs-actual variance analysis separating material price, usage, scrap, labor rate/efficiency and overhead impacts, with every element tying exactly to total cost and traceable to source transactions. It surfaced a production line running 5.9% over standard for 12 consecutive months.
